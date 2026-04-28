@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -287,7 +288,12 @@ func handleEnvironments(w http.ResponseWriter, r *http.Request) {
 }
 
 func findCommand(name string) string {
-	cmd := exec.Command("where", name)
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("where", name)
+	} else {
+		cmd = exec.Command("which", name)
+	}
 	out, err := cmd.Output()
 	if err != nil {
 		return ""

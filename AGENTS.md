@@ -2,6 +2,8 @@
 - 后端：Go 1.25
 - 前端：Vue 3
 - 数据库：本地json
+- 打包脚本：build.bat, 打包后windows可执行exe文件在dist目录下
+- 开发环境: windows
 
 # 前段代码规范
 - vue3使用选项式写法

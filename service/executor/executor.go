@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -86,11 +87,17 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 	updateOutput("开始构建后端项目...\n")
 
 	env := os.Getenv("PATH")
+	binDir := "bin"
+	pathSep := ":"
+	if runtime.GOOS == "windows" {
+		binDir = "bin"
+		pathSep = ";"
+	}
 	if config.MavenHome != "" {
-		env = config.MavenHome + "/bin:" + env
+		env = config.MavenHome + "/" + binDir + pathSep + env
 	}
 	if config.JavaHome != "" {
-		env = config.JavaHome + "/bin:" + env
+		env = config.JavaHome + "/" + binDir + pathSep + env
 	}
 
 	buildCmd := project.BuildCmd
@@ -137,8 +144,14 @@ func buildFrontend(project *store.Project, config *store.Config, updateOutput fu
 	updateOutput("开始构建前端项目...\n")
 
 	env := os.Getenv("PATH")
+	binDir := "bin"
+	pathSep := ":"
+	if runtime.GOOS == "windows" {
+		binDir = "bin"
+		pathSep = ";"
+	}
 	if config.NodeHome != "" {
-		env = config.NodeHome + "/bin:" + env
+		env = config.NodeHome + "/" + binDir + pathSep + env
 	}
 
 	updateOutput("执行 npm install...\n")
