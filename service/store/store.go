@@ -3,17 +3,27 @@ package store
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"sync"
 )
 
 var (
-	dataDir        = "data"
-	configFile     = "data/config.json"
-	projectsFile   = "data/projects.json"
-	tasksFile      = "data/tasks.json"
-	executionsFile = "data/executions.json"
+	dataDir        = getDataDir()
+	configFile     = filepath.Join(dataDir, "config.json")
+	projectsFile   = filepath.Join(dataDir, "projects.json")
+	tasksFile      = filepath.Join(dataDir, "tasks.json")
+	executionsFile = filepath.Join(dataDir, "executions.json")
 	mu             sync.RWMutex
 )
+
+func getDataDir() string {
+	exePath, err := os.Executable()
+	if err != nil {
+		return "data"
+	}
+	dir := filepath.Dir(exePath)
+	return filepath.Join(dir, "data")
+}
 
 type Config struct {
 	Port          int    `json:"port"`
