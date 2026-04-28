@@ -41,6 +41,9 @@ type Project struct {
 	BuildCmd       string   `json:"buildCmd"`
 	SkipIfNoChange bool     `json:"skipIfNoChange"`
 	Modules        []Module `json:"modules"`
+	JavaHome       string   `json:"javaHome"`
+	MavenHome      string   `json:"mavenHome"`
+	NodeHome       string   `json:"nodeHome"`
 }
 
 type Task struct {

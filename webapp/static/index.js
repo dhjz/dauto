@@ -33,7 +33,10 @@ var app = createApp({
         branch: 'master',
         buildCmd: '',
         skipIfNoChange: false,
-        modules: []
+        modules: [],
+        javaHome: '',
+        mavenHome: '',
+        nodeHome: ''
       },
       taskForm: {
         name: '',
@@ -151,7 +154,10 @@ var app = createApp({
           branch: project.branch,
           buildCmd: project.buildCmd || '',
           skipIfNoChange: project.skipIfNoChange || false,
-          modules: (project.modules || []).map(m => ({ name: m.name || '', deployDir: m.deployDir || '', startScript: m.startScript || '' }))
+          modules: (project.modules || []).map(m => ({ name: m.name || '', deployDir: m.deployDir || '', startScript: m.startScript || '' })),
+          javaHome: project.javaHome || '',
+          mavenHome: project.mavenHome || '',
+          nodeHome: project.nodeHome || ''
         }
       } else {
         this.editingProject = null
@@ -163,7 +169,10 @@ var app = createApp({
           branch: 'master',
           buildCmd: '',
           skipIfNoChange: false,
-          modules: []
+          modules: [],
+          javaHome: '',
+          mavenHome: '',
+          nodeHome: ''
         }
       }
       this.showProjectModal = true
@@ -177,7 +186,10 @@ var app = createApp({
         branch: this.projectForm.branch,
         buildCmd: this.projectForm.buildCmd,
         skipIfNoChange: this.projectForm.skipIfNoChange,
-        modules: this.projectForm.modules.filter(m => m.name.trim())
+        modules: this.projectForm.modules.filter(m => m.name.trim()),
+        javaHome: this.projectForm.javaHome,
+        mavenHome: this.projectForm.mavenHome,
+        nodeHome: this.projectForm.nodeHome
       }
       let url = baseUrl + '/api/projects'
       let method = 'POST'
@@ -209,7 +221,10 @@ var app = createApp({
         branch: project.branch,
         buildCmd: project.buildCmd || '',
         skipIfNoChange: project.skipIfNoChange || false,
-        modules: (project.modules || []).map(m => ({ name: m.name || '', deployDir: m.deployDir || '', startScript: m.startScript || '' }))
+        modules: (project.modules || []).map(m => ({ name: m.name || '', deployDir: m.deployDir || '', startScript: m.startScript || '' })),
+        javaHome: project.javaHome || '',
+        mavenHome: project.mavenHome || '',
+        nodeHome: project.nodeHome || ''
       }
       this.showProjectModal = true
     },

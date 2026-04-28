@@ -220,6 +220,16 @@
             <input type="text" v-model="projectForm.buildCmd" :placeholder="projectForm.type === 'backend' ? 'mvn clean package -DskipTests' : 'npm run build'" />
           </div>
           <div class="form-group">
+            <label>环境配置 (可选，不填则使用全局配置)</label>
+            <template v-if="projectForm.type === 'backend'">
+              <input type="text" v-model="projectForm.javaHome" placeholder="Java Home (如: C:\Program Files\Java\jdk-17)" style="margin-bottom: 5px" />
+              <input type="text" v-model="projectForm.mavenHome" placeholder="Maven Home (如: C:\apache-maven-3.8)" />
+            </template>
+            <template v-else>
+              <input type="text" v-model="projectForm.nodeHome" placeholder="Node Home (如: C:\Program Files\nodejs)" />
+            </template>
+          </div>
+          <div class="form-group">
             <label>
               <input type="checkbox" v-model="projectForm.skipIfNoChange" /> 未发生改变不构建
             </label>

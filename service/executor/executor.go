@@ -28,6 +28,25 @@ func RunProject(execID string, projectID string, force bool) (string, error) {
 
 	config := s.Config
 
+	javaHome := project.JavaHome
+	if javaHome == "" {
+		javaHome = config.JavaHome
+	}
+	mavenHome := project.MavenHome
+	if mavenHome == "" {
+		mavenHome = config.MavenHome
+	}
+	nodeHome := project.NodeHome
+	if nodeHome == "" {
+		nodeHome = config.NodeHome
+	}
+
+	projectEnv := &store.Config{
+		JavaHome:  javaHome,
+		MavenHome: mavenHome,
+		NodeHome:  nodeHome,
+	}
+
 	updateOutput := func(msg string) {
 		exec := store.GetExecution(execID)
 		if exec != nil {
@@ -40,6 +59,21 @@ func RunProject(execID string, projectID string, force bool) (string, error) {
 	updateOutput(fmt.Sprintf("项目类型: %s\n", project.Type))
 	updateOutput(fmt.Sprintf("仓库地址: %s\n", project.RepoURL))
 	updateOutput(fmt.Sprintf("本地目录: %s\n", project.LocalDir))
+
+	if project.Type == "backend" {
+		updateOutput(fmt.Sprintf("Java: %s\n", getJavaVersion(javaHome)))
+		if javaHome != "" {
+			updateOutput(fmt.Sprintf("JAVA_HOME: %s\n", javaHome))
+		}
+		if mavenHome != "" {
+			updateOutput(fmt.Sprintf("MAVEN_HOME: %s\n", mavenHome))
+		}
+	} else if project.Type == "frontend" {
+		updateOutput(fmt.Sprintf("Node: %s\n", getNodeVersion(nodeHome)))
+		if nodeHome != "" {
+			updateOutput(fmt.Sprintf("NODE_HOME: %s\n", nodeHome))
+		}
+	}
 
 	if err := os.MkdirAll(project.LocalDir, 0755); err != nil {
 		updateOutput(fmt.Sprintf("创建目录失败: %v\n", err))
@@ -75,10 +109,10 @@ func RunProject(execID string, projectID string, force bool) (string, error) {
 	}
 
 	if project.Type == "backend" {
-		err := buildBackend(project, config, updateOutput, force)
+		err := buildBackend(project, projectEnv, updateOutput, force)
 		return getFinalOutput(execID), err
 	} else if project.Type == "frontend" {
-		err := buildFrontend(project, config, updateOutput, force)
+		err := buildFrontend(project, projectEnv, updateOutput, force)
 		return getFinalOutput(execID), err
 	}
 
@@ -123,6 +157,46 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 	buildCmd := project.BuildCmd
 	if buildCmd == "" {
 		buildCmd = "mvn clean package -DskipTests"
+	}
+
+	hasModuleVar := strings.Contains(buildCmd, "{module}")
+
+	if hasModuleVar && len(project.Modules) > 0 {
+		for _, module := range project.Modules {
+			moduleCmd := strings.ReplaceAll(buildCmd, "{module}", module.Name)
+			updateOutput("执行构建命令: " + moduleCmd + "\n")
+			if err := runCommandWithEnvAndOutput(project.LocalDir, moduleCmd, env, updateOutput); err != nil {
+				updateOutput(fmt.Sprintf("模块 %s 构建失败: %v\n", module.Name, err))
+				return err
+			}
+			updateOutput("模块 " + module.Name + " 构建成功\n")
+
+			if module.DeployDir != "" {
+				os.MkdirAll(module.DeployDir, 0755)
+				jarPath := findLatestJar(project.LocalDir + "/" + module.Name + "/target")
+				if jarPath != "" {
+					deployPath := module.DeployDir
+					os.MkdirAll(deployPath, 0755)
+					destPath := filepath.Join(deployPath, filepath.Base(jarPath))
+					if err := copyFile(jarPath, destPath); err != nil {
+						updateOutput(fmt.Sprintf("复制JAR失败: %v\n", err))
+					} else {
+						updateOutput(fmt.Sprintf("部署JAR: %s -> %s\n", jarPath, destPath))
+					}
+				} else {
+					updateOutput(fmt.Sprintf("未找到模块 %s 的JAR文件\n", module.Name))
+				}
+
+				if module.StartScript != "" {
+					updateOutput(fmt.Sprintf("执行启动脚本: %s\n", module.StartScript))
+					if err := runCommand(module.DeployDir, "bash", module.StartScript, "restart"); err != nil {
+						log.Printf("启动脚本执行失败: %v", err)
+					}
+				}
+			}
+		}
+		updateOutput("所有模块构建完成\n")
+		return nil
 	}
 
 	if !force && project.SkipIfNoChange {
@@ -323,4 +397,52 @@ func SendWechatNotification(webhook string, content string) error {
 
 func init() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+}
+
+func getJavaVersion(javaHome string) string {
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("where", "java")
+	} else {
+		cmd = exec.Command("which", "java")
+	}
+	if javaHome != "" {
+		binDir := "bin"
+		if runtime.GOOS == "windows" {
+			binDir = "bin"
+			cmd = exec.Command(filepath.Join(javaHome, binDir, "java"), "-version")
+		} else {
+			cmd = exec.Command(filepath.Join(javaHome, binDir, "java"), "-version")
+		}
+	} else {
+		cmd = exec.Command("java", "-version")
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "未找到"
+	}
+	lines := strings.Split(string(out), "\n")
+	if len(lines) > 0 {
+		return strings.TrimSpace(lines[0])
+	}
+	return string(out)
+}
+
+func getNodeVersion(nodeHome string) string {
+	var cmd *exec.Cmd
+	if nodeHome != "" {
+		binDir := "bin"
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command(filepath.Join(nodeHome, binDir, "node"), "-v")
+		} else {
+			cmd = exec.Command(filepath.Join(nodeHome, binDir, "node"), "-v")
+		}
+	} else {
+		cmd = exec.Command("node", "-v")
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return "未找到"
+	}
+	return strings.TrimSpace(string(out))
 }
