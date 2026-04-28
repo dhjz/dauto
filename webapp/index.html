@@ -3,11 +3,271 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DAuto</title>
+  <title>DAuto 自动化部署系统</title>
   <link rel="stylesheet" href="static/index.css">
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <div class="container">
+      <header class="header">
+        <h1>🚀 DAuto 自动化部署系统</h1>
+        <nav class="nav">
+          <button :class="{active: activeTab === 'dashboard'}" @click="activeTab = 'dashboard'">📊 控制台</button>
+          <button :class="{active: activeTab === 'projects'}" @click="activeTab = 'projects'">📁 项目</button>
+          <button :class="{active: activeTab === 'tasks'}" @click="activeTab = 'tasks'">⏰ 定时任务</button>
+          <button :class="{active: activeTab === 'executions'}" @click="activeTab = 'executions'">📋 执行记录</button>
+          <button :class="{active: activeTab === 'settings'}" @click="activeTab = 'settings'">⚙️ 配置</button>
+        </nav>
+      </header>
+
+      <main class="main">
+        <!-- 控制台 -->
+        <div v-if="activeTab === 'dashboard'" class="dashboard">
+          <div class="stats">
+            <div class="stat-card">
+              <div class="stat-value">{{ projects.length }}</div>
+              <div class="stat-label">项目数</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">{{ tasks.length }}</div>
+              <div class="stat-label">定时任务</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">{{ executions.length }}</div>
+              <div class="stat-label">执行记录</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">{{ runningCount }}</div>
+              <div class="stat-label">正在运行</div>
+            </div>
+          </div>
+          <div class="recent">
+            <h3>最近执行</h3>
+            <table class="table">
+              <thead>
+                <tr><th>ID</th><th>项目</th><th>状态</th><th>开始时间</th><th>耗时</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="e in recentExecutions" :key="e.id">
+                  <td>{{ e.id.slice(0, 12) }}</td>
+                  <td>{{ getProjectName(e.projectId) }}</td>
+                  <td><span :class="'status ' + getStatusClass(e.status)">{{ e.status }}</span></td>
+                  <td>{{ formatTime(e.startTime) }}</td>
+                  <td>{{ e.endTime ? (e.endTime - e.startTime) + 'ms' : '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 项目管理 -->
+        <div v-if="activeTab === 'projects'" class="projects">
+          <div class="toolbar">
+            <h2>项目管理</h2>
+            <button class="btn primary" @click="openProjectModal()">+ 添加项目</button>
+          </div>
+          <table class="table">
+            <thead>
+              <tr><th>名称</th><th>类型</th><th>仓库地址</th><th>本地目录</th><th>部署目录</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="p in projects" :key="p.id">
+                <td>{{ p.name }}</td>
+                <td><span class="tag">{{ p.type }}</span></td>
+                <td class="path">{{ p.repoUrl }}</td>
+                <td class="path">{{ p.localDir }}</td>
+                <td class="path">{{ p.deployDir || '-' }}</td>
+                <td>
+                  <button class="btn small" @click="runProject(p.id)" :disabled="loading">▶ 执行</button>
+                  <button class="btn small" @click="openProjectModal(p)">✏️</button>
+                  <button class="btn small danger" @click="deleteProject(p.id)">🗑️</button>
+                </td>
+              </tr>
+              <tr v-if="projects.length === 0">
+                <td colspan="6" class="empty">暂无项目，请添加</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 定时任务 -->
+        <div v-if="activeTab === 'tasks'" class="tasks">
+          <div class="toolbar">
+            <h2>定时任务</h2>
+            <button class="btn primary" @click="openTaskModal()">+ 添加任务</button>
+          </div>
+          <table class="table">
+            <thead>
+              <tr><th>名称</th><th>项目</th><th>类型</th><th>Cron</th><th>状态</th><th>上次执行</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="t in tasks" :key="t.id">
+                <td>{{ t.name }}</td>
+                <td>{{ getProjectName(t.projectId) }}</td>
+                <td>{{ getProjectType(t.projectId) }}</td>
+                <td class="cron">{{ formatCron(t.cron) }}</td>
+                <td><button class="btn small" :class="t.enabled ? 'success' : 'default'" @click="toggleTask(t)">{{ t.enabled ? '启用' : '禁用' }}</button></td>
+                <td>{{ formatTime(t.lastRun) }}</td>
+                <td>
+                  <button class="btn small" @click="openTaskModal(t)">✏️</button>
+                  <button class="btn small danger" @click="deleteTask(t.id)">🗑️</button>
+                </td>
+              </tr>
+              <tr v-if="tasks.length === 0">
+                <td colspan="7" class="empty">暂无定时任务，请添加</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 执行记录 -->
+        <div v-if="activeTab === 'executions'" class="executions">
+          <div class="toolbar">
+            <h2>执行记录</h2>
+            <button class="btn" @click="loadExecutions()">🔄 刷新</button>
+          </div>
+          <table class="table">
+            <thead>
+              <tr><th>ID</th><th>项目</th><th>任务ID</th><th>状态</th><th>开始时间</th><th>结束时间</th><th>耗时</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="e in executions.slice().reverse()" :key="e.id">
+                <td>{{ e.id }}</td>
+                <td>{{ getProjectName(e.projectId) }}</td>
+                <td>{{ e.taskId }}</td>
+                <td><span :class="'status ' + getStatusClass(e.status)">{{ e.status }}</span></td>
+                <td>{{ formatTime(e.startTime) }}</td>
+                <td>{{ formatTime(e.endTime) }}</td>
+                <td>{{ e.endTime ? (e.endTime - e.startTime) + 'ms' : '-' }}</td>
+              </tr>
+              <tr v-if="executions.length === 0">
+                <td colspan="7" class="empty">暂无执行记录</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 配置 -->
+        <div v-if="activeTab === 'settings'" class="settings">
+          <h2>系统配置</h2>
+          <div class="form-group">
+            <label>服务端口</label>
+            <input type="number" v-model="config.port" />
+          </div>
+          <div class="form-group">
+            <label>缓存目录</label>
+            <input type="text" v-model="config.cacheDir" placeholder="cache" />
+          </div>
+          <div class="form-group">
+            <label>部署根目录</label>
+            <input type="text" v-model="config.deployDir" placeholder="deploy" />
+          </div>
+          <div class="form-group">
+            <label>Java Home</label>
+            <input type="text" v-model="config.javaHome" placeholder="C:\Program Files\Java\jdk-17" />
+            <span class="hint">当前检测: {{ environments.java || '未找到' }}</span>
+          </div>
+          <div class="form-group">
+            <label>Maven Home</label>
+            <input type="text" v-model="config.mavenHome" placeholder="C:\apache-maven-3.8" />
+            <span class="hint">当前检测: {{ environments.maven || '未找到' }}</span>
+          </div>
+          <div class="form-group">
+            <label>Node Home</label>
+            <input type="text" v-model="config.nodeHome" placeholder="C:\Program Files\nodejs" />
+            <span class="hint">当前检测: {{ environments.node || '未找到' }}</span>
+          </div>
+          <div class="form-group">
+            <label>企业微信 Webhook</label>
+            <input type="text" v-model="config.wechatWebhook" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx" />
+          </div>
+          <button class="btn primary" @click="saveConfig">💾 保存配置</button>
+        </div>
+      </main>
+
+      <!-- 项目弹窗 -->
+      <div v-if="showProjectModal" class="modal" @click.self="showProjectModal = false">
+        <div class="modal-content">
+          <h3>{{ editingProject ? '编辑项目' : '添加项目' }}</h3>
+          <div class="form-group">
+            <label>项目名称</label>
+            <input type="text" v-model="projectForm.name" placeholder="zj-aigc-mini-back" />
+          </div>
+          <div class="form-group">
+            <label>项目类型</label>
+            <select v-model="projectForm.type">
+              <option value="backend">后端 (Java/Maven)</option>
+              <option value="frontend">前端 (Node/NPM)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>仓库地址</label>
+            <input type="text" v-model="projectForm.repoUrl" placeholder="https://github.com/xxx/xxx.git" />
+          </div>
+          <div class="form-group">
+            <label>本地目录</label>
+            <input type="text" v-model="projectForm.localDir" placeholder="repos/xxx" />
+          </div>
+          <div class="form-group">
+            <label>分支</label>
+            <input type="text" v-model="projectForm.branch" placeholder="master" />
+          </div>
+          <div class="form-group">
+            <label>构建命令</label>
+            <input type="text" v-model="projectForm.buildCmd" :placeholder="projectForm.type === 'backend' ? 'mvn clean package -DskipTests' : 'npm run build'" />
+          </div>
+          <div class="form-group">
+            <label>部署目录</label>
+            <input type="text" v-model="projectForm.deployDir" placeholder="deploy/xxx" />
+          </div>
+          <div class="form-group" v-if="projectForm.type === 'backend'">
+            <label>模块 (逗号分隔)</label>
+            <input type="text" v-model="projectForm.modules" placeholder="module1, module2" />
+          </div>
+          <div class="form-group" v-if="projectForm.type === 'backend'">
+            <label>启动脚本</label>
+            <input type="text" v-model="projectForm.startScript" placeholder="start.sh" />
+          </div>
+          <div class="modal-actions">
+            <button class="btn" @click="showProjectModal = false">取消</button>
+            <button class="btn primary" @click="saveProject">保存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 任务弹窗 -->
+      <div v-if="showTaskModal" class="modal" @click.self="showTaskModal = false">
+        <div class="modal-content">
+          <h3>{{ editingTask ? '编辑任务' : '添加任务' }}</h3>
+          <div class="form-group">
+            <label>任务名称</label>
+            <input type="text" v-model="taskForm.name" placeholder="定时构建后端" />
+          </div>
+          <div class="form-group">
+            <label>选择项目</label>
+            <select v-model="taskForm.projectId">
+              <option value="">请选择项目</option>
+              <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Cron 表达式 (秒 分 时 日 月 周)</label>
+            <input type="text" v-model="taskForm.cron" placeholder="0 */5 * * * *" />
+            <span class="hint">每5分钟: 0 */5 * * * * | 每小时: 0 0 * * * * | 每天凌晨2点: 0 0 2 * * *</span>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" v-model="taskForm.enabled" /> 启用任务
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button class="btn" @click="showTaskModal = false">取消</button>
+            <button class="btn primary" @click="saveTask">保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
   <script src="static/vue.global.prod.min.js"></script>
   <script src="static/utils.js"></script>
   <script src="static/index.js"></script>

@@ -2,6 +2,8 @@ package main
 
 import (
 	"dauto/service/router"
+	"dauto/service/scheduler"
+	"dauto/service/store"
 	"embed"
 	"flag"
 	"fmt"
@@ -16,6 +18,13 @@ var f embed.FS
 func main() {
 	port := flag.Int("p", 8002, "server port")
 	flag.Parse()
+
+	if err := store.Init(); err != nil {
+		log.Printf("初始化存储失败: %v", err)
+	}
+
+	scheduler.Start()
+
 	addr := fmt.Sprintf(":%d", *port)
 
 	mux := http.NewServeMux()
@@ -25,6 +34,6 @@ func main() {
 
 	router.SetupRoutesAPI(mux)
 
-	fmt.Printf("Server starting on http://localhost%s\n", addr)
+	fmt.Printf("自动化部署服务启动于 http://localhost%s\n", addr)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
