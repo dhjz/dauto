@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func RunProject(execID string, projectID string, force bool) (string, error) {
+func RunProject(execID string, projectID string, force bool, moduleName string) (string, error) {
 	s := store.GetStore()
 	var project *store.Project
 	for _, p := range s.Projects {
@@ -59,12 +59,15 @@ func RunProject(execID string, projectID string, force bool) (string, error) {
 		if exec != nil {
 			exec.Output += msg
 			store.UpdateExecution(exec)
-			log.Printf(msg)
+			log.Println(msg)
 		}
 	}
 
 	updateOutput(fmt.Sprintf("开始构建项目: %s\n", project.Name))
 	updateOutput(fmt.Sprintf("项目类型: %s\n", project.Type))
+	if moduleName != "" {
+		updateOutput(fmt.Sprintf("指定模块: %s\n", moduleName))
+	}
 	updateOutput(fmt.Sprintf("仓库地址: %s\n", project.RepoURL))
 	updateOutput(fmt.Sprintf("本地目录: %s\n", project.LocalDir))
 
@@ -117,7 +120,7 @@ func RunProject(execID string, projectID string, force bool) (string, error) {
 	}
 
 	if project.Type == "backend" {
-		err := buildBackend(project, projectEnv, updateOutput, force)
+		err := buildBackend(project, projectEnv, updateOutput, force, moduleName)
 		return getFinalOutput(execID), err
 	} else if project.Type == "frontend" {
 		err := buildFrontend(project, projectEnv, updateOutput, force)
@@ -145,7 +148,7 @@ func getFinalOutput(execID string) string {
 	return ""
 }
 
-func buildBackend(project *store.Project, config *store.Config, updateOutput func(string), force bool) error {
+func buildBackend(project *store.Project, config *store.Config, updateOutput func(string), force bool, moduleName string) error {
 	updateOutput("开始构建后端项目...\n")
 
 	env := os.Getenv("PATH")
@@ -169,8 +172,24 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 
 	hasModuleVar := strings.Contains(buildCmd, "{module}")
 
-	if hasModuleVar && len(project.Modules) > 0 {
-		for _, module := range project.Modules {
+	var modulesToBuild []store.Module
+	if moduleName != "" {
+		for _, m := range project.Modules {
+			if m.Name == moduleName {
+				modulesToBuild = []store.Module{m}
+				break
+			}
+		}
+		if len(modulesToBuild) == 0 {
+			updateOutput(fmt.Sprintf("未找到模块: %s\n", moduleName))
+			return fmt.Errorf("未找到模块: %s", moduleName)
+		}
+	} else {
+		modulesToBuild = project.Modules
+	}
+
+	if hasModuleVar && len(modulesToBuild) > 0 {
+		for _, module := range modulesToBuild {
 			moduleCmd := strings.ReplaceAll(buildCmd, "{module}", module.Name)
 			updateOutput("执行构建命令: " + moduleCmd + "\n")
 			if err := runCommandWithEnvAndOutput(project.LocalDir, moduleCmd, env, updateOutput); err != nil {
@@ -218,7 +237,7 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 	if !force && project.SkipIfNoChange {
 		updateOutput("检测Maven模块变更...\n")
 		changed := false
-		for _, module := range project.Modules {
+		for _, module := range modulesToBuild {
 			jarPath := findLatestJar(project.LocalDir + "/" + module.Name + "/target")
 			if jarPath != "" {
 				stat, err := os.Stat(jarPath)
@@ -244,7 +263,7 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 
 	updateOutput("构建成功\n")
 
-	for _, module := range project.Modules {
+	for _, module := range modulesToBuild {
 		if module.DeployDir != "" {
 			os.MkdirAll(module.DeployDir, 0755)
 			jarPath := findLatestJar(project.LocalDir + "/" + module.Name + "/target")

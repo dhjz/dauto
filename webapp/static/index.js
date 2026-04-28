@@ -13,7 +13,8 @@ var app = createApp({
         javaHome: '',
         mavenHome: '',
         nodeHome: '',
-        wechatWebhook: ''
+        wechatWebhook: '',
+        maxExecutions: 1000
       },
       projects: [],
       tasks: [],
@@ -22,6 +23,10 @@ var app = createApp({
       showProjectModal: false,
       showTaskModal: false,
       showExecutionModal: false,
+      showModuleSelectModal: false,
+      selectedProjectForModule: null,
+      selectedModule: '',
+      selectedModuleForce: false,
       executionDetail: {},
       editingProject: null,
       editingTask: null,
@@ -278,12 +283,12 @@ var app = createApp({
         this.loadTasks()
       }
     },
-    async runProject(projectId, force = false) {
+    async runProject(projectId, force = false, module = '') {
       this.loading = true
       const res = await fetch(baseUrl + '/api/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, force })
+        body: JSON.stringify({ projectId, force, module })
       })
       const data = await res.json()
       if (res.ok && data.id) {
@@ -305,6 +310,24 @@ var app = createApp({
         body: JSON.stringify(updated)
       })
       this.loadTasks()
+    },
+    openModuleSelect(projectId, force) {
+      const project = this.projects.find(p => p.id === projectId)
+      if (!project || !project.modules || project.modules.length === 0) {
+        this.runProject(projectId, force, '')
+        return
+      }
+      this.selectedProjectForModule = projectId
+      this.selectedModule = ''
+      this.selectedModuleForce = force
+      this.showModuleSelectModal = true
+    },
+    confirmRunModule() {
+      this.showModuleSelectModal = false
+      this.runProject(this.selectedProjectForModule, this.selectedModuleForce, this.selectedModule || '')
+    },
+    getProject(projectId) {
+      return this.projects.find(p => p.id === projectId) || {}
     },
     openExecutionModal(execution) {
       this.executionDetail = execution

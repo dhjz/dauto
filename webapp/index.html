@@ -80,8 +80,8 @@
                 <td class="path" :title="p.localDir">{{ p.localDir }}</td>
                 <td class="path" :title="p.modulesText">{{ p.modulesText || '-' }}</td>
                 <td>
-                  <button class="btn small" @click="runProject(p.id)" :disabled="loading || p.running">▶ 执行</button>
-                  <button class="btn small warning" @click="runProject(p.id, true)" :disabled="loading || p.running">⚡ 强制</button>
+                  <button class="btn small" @click="openModuleSelect(p.id, false)" :disabled="loading || p.running">▶ 执行</button>
+                  <button class="btn small warning" @click="openModuleSelect(p.id, true)" :disabled="loading || p.running">⚡ 强制</button>
                   <button class="btn small" @click="openProjectModal(p)">✏️</button>
                   <button class="btn small" @click="copyProject(p)">📋 复制</button>
                   <button class="btn small danger" @click="deleteProject(p.id)">🗑️</button>
@@ -298,6 +298,24 @@
           <div class="modal-actions">
             <button class="btn" @click="showTaskModal = false">取消</button>
             <button class="btn primary" @click="saveTask">保存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 模块选择弹窗 -->
+      <div v-if="showModuleSelectModal" class="modal" @click.self="showModuleSelectModal = false">
+        <div class="modal-content">
+          <h3>选择模块 - {{ getProjectName(selectedProjectForModule) }}</h3>
+          <div class="form-group">
+            <label>选择要构建的模块：</label>
+            <select v-model="selectedModule">
+              <option value="">全部模块</option>
+              <option v-for="mod in getProject(selectedProjectForModule).modules" :key="mod.name" :value="mod.name">{{ mod.name }}</option>
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button class="btn" @click="showModuleSelectModal = false">取消</button>
+            <button class="btn primary" @click="confirmRunModule">执行</button>
           </div>
         </div>
       </div>
