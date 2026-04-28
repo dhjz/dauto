@@ -218,6 +218,7 @@
           <div class="form-group">
             <label>构建命令</label>
             <input type="text" v-model="projectForm.buildCmd" :placeholder="projectForm.type === 'backend' ? 'mvn clean package -DskipTests' : 'npm run build'" />
+            <span class="hint">示例: mvn clean package -DskipTests -q 或 npm run build</span>
           </div>
           <div class="form-group">
             <label>环境配置 (可选，不填则使用全局配置)</label>
@@ -245,6 +246,13 @@
                 <button class="btn small danger" @click="removeModule(idx)">×</button>
               </div>
               <button class="btn small" @click="addModule">+ 添加模块</button>
+            </div>
+          </template>
+          <template v-else>
+            <div class="form-group">
+              <label>部署目录</label>
+              <input type="text" v-model="projectForm.deployDir" placeholder="前端构建产物部署目录 (如: D:\dist\web)" />
+              <span class="hint">构建完成后，dist目录内容(不包含dist目录)将复制到此目录</span>
             </div>
           </template>
           <div class="modal-actions">

@@ -40,6 +40,7 @@ type Project struct {
 	Branch         string   `json:"branch"`
 	BuildCmd       string   `json:"buildCmd"`
 	SkipIfNoChange bool     `json:"skipIfNoChange"`
+	DeployDir      string   `json:"deployDir"` // 前端部署目录
 	Modules        []Module `json:"modules"`
 	JavaHome       string   `json:"javaHome"`
 	MavenHome      string   `json:"mavenHome"`

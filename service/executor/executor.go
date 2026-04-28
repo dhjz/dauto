@@ -290,8 +290,12 @@ func buildFrontend(project *store.Project, config *store.Config, updateOutput fu
 
 	updateOutput("构建成功\n")
 
+	deployDir := project.DeployDir
 	if project.Modules != nil && len(project.Modules) > 0 && project.Modules[0].DeployDir != "" {
-		deployDir := project.Modules[0].DeployDir
+		deployDir = project.Modules[0].DeployDir
+	}
+
+	if deployDir != "" {
 		os.MkdirAll(deployDir, 0755)
 		distDir := filepath.Join(project.LocalDir, "dist")
 		if _, err := os.Stat(distDir); err == nil {
