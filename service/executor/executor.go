@@ -110,6 +110,11 @@ func RunProject(execID string, projectID string, force bool, moduleName string) 
 
 		hasChanges = checkForChanges(project.LocalDir, project.Branch)
 		updateOutput(fmt.Sprintf("代码变更检测: %v\n", hasChanges))
+
+		if hasChanges {
+			updateOutput("最近提交:")
+			runCommandWithOutputCapture(project.LocalDir, updateOutput, "git", "log", "-1", "--pretty=format:%h - %s (%an, %ai)")
+		}
 	}
 
 	shouldBuild := force || !project.SkipIfNoChange || hasChanges
@@ -379,6 +384,18 @@ func runCommandWithOutput(dir string, output func(string), name string, arg ...s
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func runCommandWithOutputCapture(dir string, output func(string), name string, arg ...string) error {
+	cmd := exec.Command(name, arg...)
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	out, err := cmd.CombinedOutput()
+	if len(out) > 0 {
+		output(string(out))
+	}
+	return err
 }
 
 func runCommandWithEnvAndOutput(dir string, cmdStr string, env string, output func(string)) error {
