@@ -286,12 +286,14 @@ var app = createApp({
         body: JSON.stringify({ projectId, force })
       })
       const data = await res.json()
-      if (data.id) {
+      if (res.ok && data.id) {
         this.executionDetail = { id: data.id, projectId: projectId, status: 'running', startTime: Date.now(), output: '' }
         this.showExecutionModal = true
         this.executionTimer = setInterval(() => {
           this.loadExecutions()
         }, 1000)
+      } else if (data.error) {
+        alert(data.error)
       }
       setTimeout(() => { this.loading = false }, 2000)
     },

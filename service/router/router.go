@@ -229,6 +229,25 @@ func handleRunProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s := store.GetStore()
+	var project *store.Project
+	for _, p := range s.Projects {
+		if p.ID == req.ProjectID {
+			project = p
+			break
+		}
+	}
+
+	if project == nil {
+		http.Error(w, "项目不存在", 404)
+		return
+	}
+
+	if project.Running {
+		writeJSON(w, map[string]string{"error": "项目正在运行中，请勿重复执行"})
+		return
+	}
+
 	execID := fmt.Sprintf("exec-%d", time.Now().UnixMilli())
 	exec := &store.Execution{
 		ID:        execID,

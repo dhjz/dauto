@@ -64,6 +64,7 @@
         <div v-if="activeTab === 'projects'" class="projects">
           <div class="toolbar">
             <h2>项目管理</h2>
+            <button class="btn" @click="loadProjects()">🔄 刷新</button>
             <button class="btn primary" @click="openProjectModal()">+ 添加项目</button>
           </div>
           <table class="table">
