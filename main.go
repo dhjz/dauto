@@ -25,6 +25,6 @@ func main() {
 
 	router.SetupRoutesAPI(mux)
 
-	fmt.Printf("Server starting on http://localhost:%s\n", addr)
+	fmt.Printf("Server starting on http://localhost%s\n", addr)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
