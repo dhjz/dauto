@@ -48,12 +48,12 @@
                 <tr><th>ID</th><th>项目</th><th>状态</th><th>开始时间</th><th>耗时</th></tr>
               </thead>
               <tbody>
-                <tr v-for="e in recentExecutions" :key="e.id">
+                <tr v-for="e in recentExecutions" :key="e.id" @click="openExecutionModal(e)" style="cursor:pointer">
                   <td>{{ e.id.slice(0, 12) }}</td>
                   <td>{{ getProjectName(e.projectId) }}</td>
                   <td><span :class="'status ' + getStatusClass(e.status)">{{ e.status }}</span></td>
                   <td>{{ formatTime(e.startTime) }}</td>
-                  <td>{{ e.endTime ? (e.endTime - e.startTime) + 'ms' : '-' }}</td>
+                  <td>{{ formatDuration(e.startTime, e.endTime) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -131,14 +131,14 @@
               <tr><th>ID</th><th>项目</th><th>任务ID</th><th>状态</th><th>开始时间</th><th>结束时间</th><th>耗时</th></tr>
             </thead>
             <tbody>
-              <tr v-for="e in executions.slice().reverse()" :key="e.id">
+              <tr v-for="e in executions.slice().reverse()" :key="e.id" @click="openExecutionModal(e)" style="cursor:pointer">
                 <td>{{ e.id }}</td>
                 <td>{{ getProjectName(e.projectId) }}</td>
                 <td>{{ e.taskId }}</td>
                 <td><span :class="'status ' + getStatusClass(e.status)">{{ e.status }}</span></td>
                 <td>{{ formatTime(e.startTime) }}</td>
                 <td>{{ formatTime(e.endTime) }}</td>
-                <td>{{ e.endTime ? (e.endTime - e.startTime) + 'ms' : '-' }}</td>
+                <td>{{ formatDuration(e.startTime, e.endTime) }}</td>
               </tr>
               <tr v-if="executions.length === 0">
                 <td colspan="7" class="empty">暂无执行记录</td>
@@ -263,6 +263,24 @@
           <div class="modal-actions">
             <button class="btn" @click="showTaskModal = false">取消</button>
             <button class="btn primary" @click="saveTask">保存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 执行进度弹窗 -->
+      <div v-if="showExecutionModal" class="modal" @click.self="closeExecutionModal">
+        <div class="modal-content" style="max-width: 800px;">
+          <h3>执行详情 - {{ getProjectName(executionDetail.projectId) }}</h3>
+          <div class="execution-info mb8">
+            <span :class="'status ' + getStatusClass(executionDetail.status)">{{ executionDetail.status }}</span>
+            <span>开始: {{ formatTime(executionDetail.startTime) }}</span>
+            <span>耗时: {{ formatDuration(executionDetail.startTime, executionDetail.endTime) }}</span>
+          </div>
+          <div class="execution-output">
+            <pre>{{ executionDetail.output || '等待输出...' }}</pre>
+          </div>
+          <div class="modal-actions">
+            <button class="btn" @click="closeExecutionModal">关闭</button>
           </div>
         </div>
       </div>

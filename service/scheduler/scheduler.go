@@ -77,8 +77,9 @@ func RemoveJob(taskID string) {
 func runTask(task *store.Task) {
 	log.Printf("开始执行定时任务: %s", task.Name)
 
+	execID := fmt.Sprintf("exec-%d", time.Now().UnixMilli())
 	exec := &store.Execution{
-		ID:        fmt.Sprintf("exec-%d", time.Now().Unix()),
+		ID:        execID,
 		TaskID:    task.ID,
 		ProjectID: task.ProjectID,
 		Status:    "running",
@@ -86,8 +87,12 @@ func runTask(task *store.Task) {
 	}
 	store.AddExecution(exec)
 
-	output, err := executor.RunProject(task.ProjectID)
+	output, err := executor.RunProject(execID, task.ProjectID)
 
+	exec = store.GetExecution(execID)
+	if exec == nil {
+		return
+	}
 	exec.EndTime = time.Now().UnixMilli()
 	if err != nil {
 		exec.Status = "failed"

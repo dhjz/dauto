@@ -240,3 +240,14 @@ func UpdateExecution(e *Execution) {
 	data, _ := json.MarshalIndent(globalStore.Executions, "", "  ")
 	os.WriteFile(executionsFile, data, 0644)
 }
+
+func GetExecution(id string) *Execution {
+	mu.RLock()
+	defer mu.RUnlock()
+	for _, exec := range globalStore.Executions {
+		if exec.ID == id {
+			return exec
+		}
+	}
+	return nil
+}

@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func RunProject(projectID string) (string, error) {
+func RunProject(execID string, projectID string) (string, error) {
 	s := store.GetStore()
 	var project *store.Project
 	for _, p := range s.Projects {
@@ -26,48 +26,64 @@ func RunProject(projectID string) (string, error) {
 
 	config := s.Config
 
-	var output strings.Builder
+	updateOutput := func(msg string) {
+		exec := store.GetExecution(execID)
+		if exec != nil {
+			exec.Output += msg
+			store.UpdateExecution(exec)
+		}
+	}
 
-	output.WriteString(fmt.Sprintf("开始构建项目: %s\n", project.Name))
-	output.WriteString(fmt.Sprintf("项目类型: %s\n", project.Type))
-	output.WriteString(fmt.Sprintf("仓库地址: %s\n", project.RepoURL))
-	output.WriteString(fmt.Sprintf("本地目录: %s\n", project.LocalDir))
+	updateOutput(fmt.Sprintf("开始构建项目: %s\n", project.Name))
+	updateOutput(fmt.Sprintf("项目类型: %s\n", project.Type))
+	updateOutput(fmt.Sprintf("仓库地址: %s\n", project.RepoURL))
+	updateOutput(fmt.Sprintf("本地目录: %s\n", project.LocalDir))
 
 	if err := os.MkdirAll(project.LocalDir, 0755); err != nil {
-		return output.String(), fmt.Errorf("创建目录失败: %v", err)
+		updateOutput(fmt.Sprintf("创建目录失败: %v\n", err))
+		return "", fmt.Errorf("创建目录失败: %v", err)
 	}
 
 	if _, err := os.Stat(filepath.Join(project.LocalDir, ".git")); os.IsNotExist(err) {
-		output.WriteString(fmt.Sprintf("克隆仓库...\n"))
-		if err := runCommand("", "git", "clone", "-b", project.Branch, project.RepoURL, project.LocalDir); err != nil {
-			return output.String(), fmt.Errorf("克隆仓库失败: %v", err)
+		updateOutput("克隆仓库...\n")
+		if err := runCommandWithOutput("", updateOutput, "git", "clone", "-b", project.Branch, project.RepoURL, project.LocalDir); err != nil {
+			updateOutput(fmt.Sprintf("克隆仓库失败: %v\n", err))
+			return "", fmt.Errorf("克隆仓库失败: %v", err)
 		}
 	} else {
-		output.WriteString(fmt.Sprintf("更新仓库...\n"))
-		if err := runCommand(project.LocalDir, "git", "fetch", "origin", project.Branch); err != nil {
+		updateOutput("更新仓库...\n")
+		if err := runCommandWithOutput(project.LocalDir, updateOutput, "git", "fetch", "origin", project.Branch); err != nil {
 			log.Printf("git fetch 警告: %v", err)
 		}
-		if err := runCommand(project.LocalDir, "git", "checkout", project.Branch); err != nil {
+		if err := runCommandWithOutput(project.LocalDir, updateOutput, "git", "checkout", project.Branch); err != nil {
 			log.Printf("git checkout 警告: %v", err)
 		}
-		if err := runCommand(project.LocalDir, "git", "pull", "origin", project.Branch); err != nil {
+		if err := runCommandWithOutput(project.LocalDir, updateOutput, "git", "pull", "origin", project.Branch); err != nil {
 			log.Printf("git pull 警告: %v", err)
 		}
 	}
 
 	if project.Type == "backend" {
-		err := buildBackend(project, config, &output)
-		return output.String(), err
+		err := buildBackend(project, config, updateOutput)
+		return getFinalOutput(execID), err
 	} else if project.Type == "frontend" {
-		err := buildFrontend(project, config, &output)
-		return output.String(), err
+		err := buildFrontend(project, config, updateOutput)
+		return getFinalOutput(execID), err
 	}
 
-	return output.String(), nil
+	return getFinalOutput(execID), nil
 }
 
-func buildBackend(project *store.Project, config *store.Config, output *strings.Builder) error {
-	output.WriteString(fmt.Sprintf("开始构建后端项目...\n"))
+func getFinalOutput(execID string) string {
+	exec := store.GetExecution(execID)
+	if exec != nil {
+		return exec.Output
+	}
+	return ""
+}
+
+func buildBackend(project *store.Project, config *store.Config, updateOutput func(string)) error {
+	updateOutput("开始构建后端项目...\n")
 
 	env := os.Getenv("PATH")
 	if config.MavenHome != "" {
@@ -82,12 +98,12 @@ func buildBackend(project *store.Project, config *store.Config, output *strings.
 		buildCmd = "mvn clean package -DskipTests"
 	}
 
-	if err := runCommandWithEnv(project.LocalDir, buildCmd, env); err != nil {
-		output.WriteString(fmt.Sprintf("构建失败: %v\n", err))
+	if err := runCommandWithEnvAndOutput(project.LocalDir, buildCmd, env, updateOutput); err != nil {
+		updateOutput(fmt.Sprintf("构建失败: %v\n", err))
 		return err
 	}
 
-	output.WriteString(fmt.Sprintf("构建成功\n"))
+	updateOutput("构建成功\n")
 
 	if project.DeployDir != "" {
 		os.MkdirAll(project.DeployDir, 0755)
@@ -99,15 +115,15 @@ func buildBackend(project *store.Project, config *store.Config, output *strings.
 				os.MkdirAll(deployPath, 0755)
 				destPath := filepath.Join(deployPath, filepath.Base(jarPath))
 				if err := copyFile(jarPath, destPath); err != nil {
-					output.WriteString(fmt.Sprintf("复制JAR失败: %v\n", err))
+					updateOutput(fmt.Sprintf("复制JAR失败: %v\n", err))
 				} else {
-					output.WriteString(fmt.Sprintf("部署JAR: %s -> %s\n", jarPath, destPath))
+					updateOutput(fmt.Sprintf("部署JAR: %s -> %s\n", jarPath, destPath))
 				}
 			}
 		}
 
 		if project.StartScript != "" {
-			output.WriteString(fmt.Sprintf("执行启动脚本: %s\n", project.StartScript))
+			updateOutput(fmt.Sprintf("执行启动脚本: %s\n", project.StartScript))
 			if err := runCommand(project.DeployDir, "bash", project.StartScript, "restart"); err != nil {
 				log.Printf("启动脚本执行失败: %v", err)
 			}
@@ -117,16 +133,17 @@ func buildBackend(project *store.Project, config *store.Config, output *strings.
 	return nil
 }
 
-func buildFrontend(project *store.Project, config *store.Config, output *strings.Builder) error {
-	output.WriteString(fmt.Sprintf("开始构建前端项目...\n"))
+func buildFrontend(project *store.Project, config *store.Config, updateOutput func(string)) error {
+	updateOutput("开始构建前端项目...\n")
 
 	env := os.Getenv("PATH")
 	if config.NodeHome != "" {
 		env = config.NodeHome + "/bin:" + env
 	}
 
-	if err := runCommandWithEnv(project.LocalDir, "npm install", env); err != nil {
-		output.WriteString(fmt.Sprintf("npm install 失败: %v\n", err))
+	updateOutput("执行 npm install...\n")
+	if err := runCommandWithEnvAndOutput(project.LocalDir, "npm install", env, updateOutput); err != nil {
+		updateOutput(fmt.Sprintf("npm install 失败: %v\n", err))
 		return err
 	}
 
@@ -135,21 +152,22 @@ func buildFrontend(project *store.Project, config *store.Config, output *strings
 		buildCmd = "npm run build"
 	}
 
-	if err := runCommandWithEnv(project.LocalDir, buildCmd, env); err != nil {
-		output.WriteString(fmt.Sprintf("构建失败: %v\n", err))
+	updateOutput("执行构建命令...\n")
+	if err := runCommandWithEnvAndOutput(project.LocalDir, buildCmd, env, updateOutput); err != nil {
+		updateOutput(fmt.Sprintf("构建失败: %v\n", err))
 		return err
 	}
 
-	output.WriteString(fmt.Sprintf("构建成功\n"))
+	updateOutput("构建成功\n")
 
 	if project.DeployDir != "" && project.Type == "frontend" {
 		os.MkdirAll(project.DeployDir, 0755)
 		distDir := filepath.Join(project.LocalDir, "dist")
 		if _, err := os.Stat(distDir); err == nil {
 			if err := copyDir(distDir, project.DeployDir); err != nil {
-				output.WriteString(fmt.Sprintf("部署失败: %v\n", err))
+				updateOutput(fmt.Sprintf("部署失败: %v\n", err))
 			} else {
-				output.WriteString(fmt.Sprintf("部署成功: %s\n", project.DeployDir))
+				updateOutput(fmt.Sprintf("部署成功: %s\n", project.DeployDir))
 			}
 		}
 	}
@@ -167,7 +185,17 @@ func runCommand(dir string, name string, arg ...string) error {
 	return cmd.Run()
 }
 
-func runCommandWithEnv(dir string, cmdStr string, env string) error {
+func runCommandWithOutput(dir string, output func(string), name string, arg ...string) error {
+	cmd := exec.Command(name, arg...)
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func runCommandWithEnvAndOutput(dir string, cmdStr string, env string, output func(string)) error {
 	parts := strings.Fields(cmdStr)
 	if len(parts) == 0 {
 		return fmt.Errorf("空命令")

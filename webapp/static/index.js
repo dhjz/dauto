@@ -21,6 +21,8 @@ var app = createApp({
       environments: {},
       showProjectModal: false,
       showTaskModal: false,
+      showExecutionModal: false,
+      executionDetail: {},
       editingProject: null,
       editingTask: null,
       projectForm: {
@@ -41,7 +43,8 @@ var app = createApp({
         enabled: true
       },
       loading: false,
-      refreshTimer: null
+      refreshTimer: null,
+      executionTimer: null
     }
   },
   computed: {
@@ -60,9 +63,8 @@ var app = createApp({
     }, 3000)
   },
   beforeUnmount() {
-    if (this.refreshTimer) {
-      clearInterval(this.refreshTimer)
-    }
+    if (this.refreshTimer) clearInterval(this.refreshTimer)
+    if (this.executionTimer) clearInterval(this.executionTimer)
   },
   methods: {
     async loadData() {
@@ -114,6 +116,12 @@ var app = createApp({
       try {
         const res = await fetch(baseUrl + '/api/executions')
         this.executions = await res.json()
+        if (this.showExecutionModal && this.executionDetail.id) {
+          const current = this.executions.find(e => e.id === this.executionDetail.id)
+          if (current) {
+            this.executionDetail = current
+          }
+        }
       } catch (e) {
         console.error('加载执行记录失败', e)
         this.executions = []
@@ -226,15 +234,19 @@ var app = createApp({
     },
     async runProject(projectId) {
       this.loading = true
-      await fetch(baseUrl + '/api/run', {
+      const res = await fetch(baseUrl + '/api/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId })
       })
-      setTimeout(() => {
-        this.loadExecutions()
-        this.loading = false
-      }, 2000)
+      const data = await res.json()
+      if (data.id) {
+        this.executionDetail = { id: data.id, projectId: projectId, status: 'running', startTime: Date.now(), output: '' }
+        this.showExecutionModal = true
+        this.executionTimer = setInterval(() => {
+          this.loadExecutions()
+        }, 1000)
+      }
     },
     async toggleTask(task) {
       const updated = { ...task, enabled: !task.enabled }
@@ -244,6 +256,22 @@ var app = createApp({
         body: JSON.stringify(updated)
       })
       this.loadTasks()
+    },
+    openExecutionModal(execution) {
+      this.executionDetail = execution
+      this.showExecutionModal = true
+      if (execution.status === 'running') {
+        this.executionTimer = setInterval(() => {
+          this.loadExecutions()
+        }, 1000)
+      }
+    },
+    closeExecutionModal() {
+      this.showExecutionModal = false
+      if (this.executionTimer) {
+        clearInterval(this.executionTimer)
+        this.executionTimer = null
+      }
     },
     getProjectName(projectId) {
       const p = this.projects.find(p => p.id === projectId)
@@ -256,6 +284,16 @@ var app = createApp({
     formatTime(timestamp) {
       if (!timestamp) return '-'
       return new Date(timestamp).toLocaleString('zh-CN')
+    },
+    formatDuration(startTime, endTime) {
+      if (!startTime) return '-'
+      const end = endTime || Date.now()
+      const diff = end - startTime
+      if (diff < 1000) return diff + 'ms'
+      if (diff < 60000) return (diff / 1000).toFixed(1) + '秒'
+      const minutes = Math.floor(diff / 60000)
+      const seconds = ((diff % 60000) / 1000).toFixed(0)
+      return minutes + '分' + seconds + '秒'
     },
     formatCron(cron) {
       const parts = cron.split(' ')

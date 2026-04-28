@@ -227,18 +227,24 @@ func handleRunProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	execID := fmt.Sprintf("exec-%d", time.Now().UnixMilli())
+	exec := &store.Execution{
+		ID:        execID,
+		TaskID:    "manual",
+		ProjectID: req.ProjectID,
+		Status:    "running",
+		StartTime: time.Now().UnixMilli(),
+	}
+	store.AddExecution(exec)
+	writeJSON(w, exec)
+
 	go func() {
-		exec := &store.Execution{
-			ID:        fmt.Sprintf("exec-%d", time.Now().Unix()),
-			TaskID:    "manual",
-			ProjectID: req.ProjectID,
-			Status:    "running",
-			StartTime: time.Now().UnixMilli(),
+		output, err := executor.RunProject(execID, req.ProjectID)
+
+		exec := store.GetExecution(execID)
+		if exec == nil {
+			return
 		}
-		store.AddExecution(exec)
-
-		output, err := executor.RunProject(req.ProjectID)
-
 		exec.EndTime = time.Now().UnixMilli()
 		if err != nil {
 			exec.Status = "failed"
@@ -256,8 +262,6 @@ func handleRunProject(w http.ResponseWriter, r *http.Request) {
 			executor.SendWechatNotification(s.Config.WechatWebhook, msg)
 		}
 	}()
-
-	writeJSON(w, map[string]string{"status": "started"})
 }
 
 func handleBuild(w http.ResponseWriter, r *http.Request) {
