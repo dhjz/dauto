@@ -111,14 +111,14 @@ func RunProject(execID string, projectID string, force bool, moduleName string) 
 		hasChanges = checkForChanges(project.LocalDir, project.Branch)
 		updateOutput(fmt.Sprintf("代码变更检测: %v\n", hasChanges))
 
-		if hasChanges {
-			updateOutput("最近提交:")
-			runCommandWithOutputCapture(project.LocalDir, updateOutput, "git", "log", "-1", "--pretty=format:%h - %s (%an, %ai)")
-		}
 	}
 
 	shouldBuild := force || !project.SkipIfNoChange || hasChanges
 
+	if shouldBuild {
+		updateOutput("最近提交:")
+		runCommandWithOutputCapture(project.LocalDir, updateOutput, "git", "log", "-1", "--pretty=format:%h - %s (%an, %ai)")
+	}
 	if !shouldBuild && project.SkipIfNoChange {
 		updateOutput("未发生变更，跳过构建\n")
 		return getFinalOutput(execID), nil
