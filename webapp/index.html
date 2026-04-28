@@ -68,7 +68,7 @@
           </div>
           <table class="table">
             <thead>
-              <tr><th>名称</th><th>类型</th><th>仓库地址</th><th>本地目录</th><th>部署目录</th><th>操作</th></tr>
+              <tr><th>名称</th><th>类型</th><th>仓库地址</th><th>本地目录</th><th>模块</th><th>操作</th></tr>
             </thead>
             <tbody>
               <tr v-for="p in projects" :key="p.id">
@@ -76,10 +76,12 @@
                 <td><span class="tag">{{ p.type }}</span></td>
                 <td class="path">{{ p.repoUrl }}</td>
                 <td class="path">{{ p.localDir }}</td>
-                <td class="path">{{ p.deployDir || '-' }}</td>
+                <td class="path">{{ (p.modules || []).map(m => m.name).join(', ') || '-' }}</td>
                 <td>
                   <button class="btn small" @click="runProject(p.id)" :disabled="loading">▶ 执行</button>
+                  <button class="btn small warning" @click="runProject(p.id, true)" :disabled="loading">⚡ 强制</button>
                   <button class="btn small" @click="openProjectModal(p)">✏️</button>
+                  <button class="btn small" @click="copyProject(p)">📋 复制</button>
                   <button class="btn small danger" @click="deleteProject(p.id)">🗑️</button>
                 </td>
               </tr>
@@ -218,17 +220,23 @@
             <input type="text" v-model="projectForm.buildCmd" :placeholder="projectForm.type === 'backend' ? 'mvn clean package -DskipTests' : 'npm run build'" />
           </div>
           <div class="form-group">
-            <label>部署目录</label>
-            <input type="text" v-model="projectForm.deployDir" placeholder="deploy/xxx" />
+            <label>
+              <input type="checkbox" v-model="projectForm.skipIfNoChange" /> 未发生改变不构建
+            </label>
+            <span class="hint">勾选后，如果代码没有变更则跳过构建</span>
           </div>
-          <div class="form-group" v-if="projectForm.type === 'backend'">
-            <label>模块 (逗号分隔)</label>
-            <input type="text" v-model="projectForm.modules" placeholder="module1, module2" />
-          </div>
-          <div class="form-group" v-if="projectForm.type === 'backend'">
-            <label>启动脚本</label>
-            <input type="text" v-model="projectForm.startScript" placeholder="start.sh" />
-          </div>
+          <template v-if="projectForm.type === 'backend'">
+            <div class="form-group">
+              <label>模块配置</label>
+              <div v-for="(mod, idx) in projectForm.modules" :key="idx" class="module-item">
+                <input type="text" v-model="mod.name" placeholder="模块名" style="width: 30%" />
+                <input type="text" v-model="mod.deployDir" placeholder="部署目录" style="width: 30%" />
+                <input type="text" v-model="mod.startScript" placeholder="启动脚本" style="width: 30%" />
+                <button class="btn small danger" @click="removeModule(idx)">×</button>
+              </div>
+              <button class="btn small" @click="addModule">+ 添加模块</button>
+            </div>
+          </template>
           <div class="modal-actions">
             <button class="btn" @click="showProjectModal = false">取消</button>
             <button class="btn primary" @click="saveProject">保存</button>

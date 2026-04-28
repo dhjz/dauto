@@ -222,6 +222,7 @@ func handleRunProject(w http.ResponseWriter, r *http.Request) {
 
 	var req struct {
 		ProjectID string `json:"projectId"`
+		Force     bool   `json:"force"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), 400)
@@ -240,7 +241,7 @@ func handleRunProject(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, exec)
 
 	go func() {
-		output, err := executor.RunProject(execID, req.ProjectID)
+		output, err := executor.RunProject(execID, req.ProjectID, req.Force)
 
 		exec := store.GetExecution(execID)
 		if exec == nil {

@@ -25,17 +25,22 @@ type Config struct {
 	WechatWebhook string `json:"wechatWebhook"`
 }
 
+type Module struct {
+	Name        string `json:"name"`
+	DeployDir   string `json:"deployDir"`
+	StartScript string `json:"startScript"`
+}
+
 type Project struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Type        string   `json:"type"` // backend, frontend
-	RepoURL     string   `json:"repoUrl"`
-	LocalDir    string   `json:"localDir"`
-	Branch      string   `json:"branch"`
-	BuildCmd    string   `json:"buildCmd"`
-	DeployDir   string   `json:"deployDir"`
-	StartScript string   `json:"startScript"`
-	Modules     []string `json:"modules,omitempty"`
+	ID             string   `json:"id"`
+	Name           string   `json:"name"`
+	Type           string   `json:"type"` // backend, frontend
+	RepoURL        string   `json:"repoUrl"`
+	LocalDir       string   `json:"localDir"`
+	Branch         string   `json:"branch"`
+	BuildCmd       string   `json:"buildCmd"`
+	SkipIfNoChange bool     `json:"skipIfNoChange"`
+	Modules        []Module `json:"modules"`
 }
 
 type Task struct {

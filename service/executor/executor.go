@@ -9,9 +9,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
-func RunProject(execID string, projectID string) (string, error) {
+func RunProject(execID string, projectID string, force bool) (string, error) {
 	s := store.GetStore()
 	var project *store.Project
 	for _, p := range s.Projects {
@@ -45,12 +46,14 @@ func RunProject(execID string, projectID string) (string, error) {
 		return "", fmt.Errorf("创建目录失败: %v", err)
 	}
 
+	hasChanges := true
 	if _, err := os.Stat(filepath.Join(project.LocalDir, ".git")); os.IsNotExist(err) {
 		updateOutput("克隆仓库...\n")
 		if err := runCommandWithOutput("", updateOutput, "git", "clone", "-b", project.Branch, project.RepoURL, project.LocalDir); err != nil {
 			updateOutput(fmt.Sprintf("克隆仓库失败: %v\n", err))
 			return "", fmt.Errorf("克隆仓库失败: %v", err)
 		}
+		hasChanges = true
 	} else {
 		updateOutput("更新仓库...\n")
 		if err := runCommandWithOutput(project.LocalDir, updateOutput, "git", "fetch", "origin", project.Branch); err != nil {
@@ -59,20 +62,37 @@ func RunProject(execID string, projectID string) (string, error) {
 		if err := runCommandWithOutput(project.LocalDir, updateOutput, "git", "checkout", project.Branch); err != nil {
 			log.Printf("git checkout 警告: %v", err)
 		}
-		if err := runCommandWithOutput(project.LocalDir, updateOutput, "git", "pull", "origin", project.Branch); err != nil {
-			log.Printf("git pull 警告: %v", err)
-		}
+
+		hasChanges = checkForChanges(project.LocalDir, project.Branch)
+		updateOutput(fmt.Sprintf("代码变更检测: %v\n", hasChanges))
+	}
+
+	shouldBuild := force || !project.SkipIfNoChange || hasChanges
+
+	if !shouldBuild && project.SkipIfNoChange {
+		updateOutput("未发生变更，跳过构建\n")
+		return getFinalOutput(execID), nil
 	}
 
 	if project.Type == "backend" {
-		err := buildBackend(project, config, updateOutput)
+		err := buildBackend(project, config, updateOutput, force)
 		return getFinalOutput(execID), err
 	} else if project.Type == "frontend" {
-		err := buildFrontend(project, config, updateOutput)
+		err := buildFrontend(project, config, updateOutput, force)
 		return getFinalOutput(execID), err
 	}
 
 	return getFinalOutput(execID), nil
+}
+
+func checkForChanges(localDir string, branch string) bool {
+	cmd := exec.Command("git", "diff", "HEAD", fmt.Sprintf("origin/%s", branch))
+	cmd.Dir = localDir
+	out, err := cmd.Output()
+	if err != nil {
+		return true
+	}
+	return len(strings.TrimSpace(string(out))) > 0
 }
 
 func getFinalOutput(execID string) string {
@@ -83,7 +103,7 @@ func getFinalOutput(execID string) string {
 	return ""
 }
 
-func buildBackend(project *store.Project, config *store.Config, updateOutput func(string)) error {
+func buildBackend(project *store.Project, config *store.Config, updateOutput func(string), force bool) error {
 	updateOutput("开始构建后端项目...\n")
 
 	env := os.Getenv("PATH")
@@ -105,6 +125,28 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 		buildCmd = "mvn clean package -DskipTests"
 	}
 
+	if !force && project.SkipIfNoChange {
+		updateOutput("检测Maven模块变更...\n")
+		changed := false
+		for _, module := range project.Modules {
+			jarPath := findLatestJar(project.LocalDir + "/" + module.Name + "/target")
+			if jarPath != "" {
+				stat, err := os.Stat(jarPath)
+				if err == nil {
+					if stat.ModTime().After(time.Now().Add(-24 * time.Hour)) {
+						changed = true
+						updateOutput(fmt.Sprintf("模块 %s 有新构建: %s\n", module.Name, filepath.Base(jarPath)))
+					}
+				}
+			}
+		}
+		if !changed {
+			updateOutput("所有模块无可用构建产物，跳过构建\n")
+			return nil
+		}
+	}
+
+	updateOutput("执行构建命令: " + buildCmd + "\n")
 	if err := runCommandWithEnvAndOutput(project.LocalDir, buildCmd, env, updateOutput); err != nil {
 		updateOutput(fmt.Sprintf("构建失败: %v\n", err))
 		return err
@@ -112,13 +154,12 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 
 	updateOutput("构建成功\n")
 
-	if project.DeployDir != "" {
-		os.MkdirAll(project.DeployDir, 0755)
-
-		for _, module := range project.Modules {
-			jarPath := findJarFile(project.LocalDir + "/" + module + "/target")
+	for _, module := range project.Modules {
+		if module.DeployDir != "" {
+			os.MkdirAll(module.DeployDir, 0755)
+			jarPath := findLatestJar(project.LocalDir + "/" + module.Name + "/target")
 			if jarPath != "" {
-				deployPath := filepath.Join(project.DeployDir, module)
+				deployPath := module.DeployDir
 				os.MkdirAll(deployPath, 0755)
 				destPath := filepath.Join(deployPath, filepath.Base(jarPath))
 				if err := copyFile(jarPath, destPath); err != nil {
@@ -126,13 +167,15 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 				} else {
 					updateOutput(fmt.Sprintf("部署JAR: %s -> %s\n", jarPath, destPath))
 				}
+			} else {
+				updateOutput(fmt.Sprintf("未找到模块 %s 的JAR文件\n", module.Name))
 			}
-		}
 
-		if project.StartScript != "" {
-			updateOutput(fmt.Sprintf("执行启动脚本: %s\n", project.StartScript))
-			if err := runCommand(project.DeployDir, "bash", project.StartScript, "restart"); err != nil {
-				log.Printf("启动脚本执行失败: %v", err)
+			if module.StartScript != "" {
+				updateOutput(fmt.Sprintf("执行启动脚本: %s\n", module.StartScript))
+				if err := runCommand(module.DeployDir, "bash", module.StartScript, "restart"); err != nil {
+					log.Printf("启动脚本执行失败: %v", err)
+				}
 			}
 		}
 	}
@@ -140,7 +183,7 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 	return nil
 }
 
-func buildFrontend(project *store.Project, config *store.Config, updateOutput func(string)) error {
+func buildFrontend(project *store.Project, config *store.Config, updateOutput func(string), force bool) error {
 	updateOutput("开始构建前端项目...\n")
 
 	env := os.Getenv("PATH")
@@ -165,7 +208,7 @@ func buildFrontend(project *store.Project, config *store.Config, updateOutput fu
 		buildCmd = "npm run build"
 	}
 
-	updateOutput("执行构建命令...\n")
+	updateOutput("执行构建命令: " + buildCmd + "\n")
 	if err := runCommandWithEnvAndOutput(project.LocalDir, buildCmd, env, updateOutput); err != nil {
 		updateOutput(fmt.Sprintf("构建失败: %v\n", err))
 		return err
@@ -173,14 +216,15 @@ func buildFrontend(project *store.Project, config *store.Config, updateOutput fu
 
 	updateOutput("构建成功\n")
 
-	if project.DeployDir != "" && project.Type == "frontend" {
-		os.MkdirAll(project.DeployDir, 0755)
+	if project.Modules != nil && len(project.Modules) > 0 && project.Modules[0].DeployDir != "" {
+		deployDir := project.Modules[0].DeployDir
+		os.MkdirAll(deployDir, 0755)
 		distDir := filepath.Join(project.LocalDir, "dist")
 		if _, err := os.Stat(distDir); err == nil {
-			if err := copyDir(distDir, project.DeployDir); err != nil {
+			if err := copyDir(distDir, deployDir); err != nil {
 				updateOutput(fmt.Sprintf("部署失败: %v\n", err))
 			} else {
-				updateOutput(fmt.Sprintf("部署成功: %s\n", project.DeployDir))
+				updateOutput(fmt.Sprintf("部署成功: %s\n", deployDir))
 			}
 		}
 	}
@@ -224,17 +268,25 @@ func runCommandWithEnvAndOutput(dir string, cmdStr string, env string, output fu
 	return cmd.Run()
 }
 
-func findJarFile(dir string) string {
+func findLatestJar(dir string) string {
 	files, err := os.ReadDir(dir)
 	if err != nil {
 		return ""
 	}
+	var latestFile os.FileInfo
+	var latestPath string
 	for _, f := range files {
 		if !f.IsDir() && strings.HasSuffix(f.Name(), ".jar") {
-			return filepath.Join(dir, f.Name())
+			info, err := f.Info()
+			if err == nil {
+				if latestFile == nil || info.ModTime().After(latestFile.ModTime()) {
+					latestFile = info
+					latestPath = filepath.Join(dir, f.Name())
+				}
+			}
 		}
 	}
-	return ""
+	return latestPath
 }
 
 func copyFile(src, dst string) error {

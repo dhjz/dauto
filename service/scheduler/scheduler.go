@@ -87,7 +87,7 @@ func runTask(task *store.Task) {
 	}
 	store.AddExecution(exec)
 
-	output, err := executor.RunProject(execID, task.ProjectID)
+	output, err := executor.RunProject(execID, task.ProjectID, false)
 
 	exec = store.GetExecution(execID)
 	if exec == nil {

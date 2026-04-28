@@ -32,9 +32,8 @@ var app = createApp({
         localDir: '',
         branch: 'master',
         buildCmd: '',
-        deployDir: '',
-        startScript: '',
-        modules: ''
+        skipIfNoChange: false,
+        modules: []
       },
       taskForm: {
         name: '',
@@ -135,6 +134,12 @@ var app = createApp({
         console.error('加载环境变量失败', e)
       }
     },
+    addModule() {
+      this.projectForm.modules.push({ name: '', deployDir: '', startScript: '' })
+    },
+    removeModule(idx) {
+      this.projectForm.modules.splice(idx, 1)
+    },
     openProjectModal(project = null) {
       if (project) {
         this.editingProject = project
@@ -145,9 +150,8 @@ var app = createApp({
           localDir: project.localDir,
           branch: project.branch,
           buildCmd: project.buildCmd || '',
-          deployDir: project.deployDir || '',
-          startScript: project.startScript || '',
-          modules: (project.modules || []).join(', ')
+          skipIfNoChange: project.skipIfNoChange || false,
+          modules: (project.modules || []).map(m => ({ name: m.name || '', deployDir: m.deployDir || '', startScript: m.startScript || '' }))
         }
       } else {
         this.editingProject = null
@@ -158,17 +162,22 @@ var app = createApp({
           localDir: '',
           branch: 'master',
           buildCmd: '',
-          deployDir: '',
-          startScript: '',
-          modules: ''
+          skipIfNoChange: false,
+          modules: []
         }
       }
       this.showProjectModal = true
     },
     async saveProject() {
       const data = {
-        ...this.projectForm,
-        modules: this.projectForm.modules.split(',').map(m => m.trim()).filter(m => m)
+        name: this.projectForm.name,
+        type: this.projectForm.type,
+        repoUrl: this.projectForm.repoUrl,
+        localDir: this.projectForm.localDir,
+        branch: this.projectForm.branch,
+        buildCmd: this.projectForm.buildCmd,
+        skipIfNoChange: this.projectForm.skipIfNoChange,
+        modules: this.projectForm.modules.filter(m => m.name.trim())
       }
       let url = baseUrl + '/api/projects'
       let method = 'POST'
@@ -189,6 +198,20 @@ var app = createApp({
         await fetch(baseUrl + '/api/projects/' + id, { method: 'DELETE' })
         this.loadProjects()
       }
+    },
+    copyProject(project) {
+      this.editingProject = null
+      this.projectForm = {
+        name: project.name + '-copy',
+        type: project.type,
+        repoUrl: project.repoUrl,
+        localDir: project.localDir + '-copy',
+        branch: project.branch,
+        buildCmd: project.buildCmd || '',
+        skipIfNoChange: project.skipIfNoChange || false,
+        modules: (project.modules || []).map(m => ({ name: m.name || '', deployDir: m.deployDir || '', startScript: m.startScript || '' }))
+      }
+      this.showProjectModal = true
     },
     openTaskModal(task = null) {
       if (task) {
@@ -232,12 +255,12 @@ var app = createApp({
         this.loadTasks()
       }
     },
-    async runProject(projectId) {
+    async runProject(projectId, force = false) {
       this.loading = true
       const res = await fetch(baseUrl + '/api/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId })
+        body: JSON.stringify({ projectId, force })
       })
       const data = await res.json()
       if (data.id) {
@@ -247,6 +270,7 @@ var app = createApp({
           this.loadExecutions()
         }, 1000)
       }
+      setTimeout(() => { this.loading = false }, 2000)
     },
     async toggleTask(task) {
       const updated = { ...task, enabled: !task.enabled }
