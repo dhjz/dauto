@@ -314,6 +314,7 @@ var app = createApp({
     openModuleSelect(projectId, force) {
       const project = this.projects.find(p => p.id === projectId)
       if (!project || !project.modules || project.modules.length === 0) {
+        if (!confirm('确定要执行该项目吗？')) return
         this.runProject(projectId, force, '')
         return
       }
@@ -323,6 +324,7 @@ var app = createApp({
       this.showModuleSelectModal = true
     },
     confirmRunModule() {
+      if (!confirm('确定要执行该项目吗？')) return
       this.showModuleSelectModal = false
       this.runProject(this.selectedProjectForModule, this.selectedModuleForce, this.selectedModule || '')
     },
