@@ -26,6 +26,13 @@ func RunProject(execID string, projectID string, force bool) (string, error) {
 		return "", fmt.Errorf("项目不存在: %s", projectID)
 	}
 
+	if project.Running {
+		return "", fmt.Errorf("项目正在运行中，请勿重复执行")
+	}
+
+	store.SetProjectRunning(projectID, true)
+	defer store.SetProjectRunning(projectID, false)
+
 	config := s.Config
 
 	javaHome := project.JavaHome

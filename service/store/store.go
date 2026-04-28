@@ -23,6 +23,7 @@ type Config struct {
 	MavenHome     string `json:"mavenHome"`
 	NodeHome      string `json:"nodeHome"`
 	WechatWebhook string `json:"wechatWebhook"`
+	MaxExecutions int    `json:"maxExecutions"`
 }
 
 type Module struct {
@@ -41,6 +42,7 @@ type Project struct {
 	BuildCmd       string   `json:"buildCmd"`
 	SkipIfNoChange bool     `json:"skipIfNoChange"`
 	DeployDir      string   `json:"deployDir"` // 前端部署目录
+	Running        bool     `json:"running"`   // 是否正在运行
 	Modules        []Module `json:"modules"`
 	JavaHome       string   `json:"javaHome"`
 	MavenHome      string   `json:"mavenHome"`
@@ -76,7 +78,7 @@ type Store struct {
 }
 
 var globalStore = &Store{
-	Config:     &Config{Port: 8002, CacheDir: "cache", DeployDir: "deploy"},
+	Config:     &Config{Port: 8002, CacheDir: "cache", DeployDir: "deploy", MaxExecutions: 1000},
 	Projects:   make([]*Project, 0),
 	Tasks:      make([]*Task, 0),
 	Executions: make([]*Execution, 0),
@@ -88,7 +90,22 @@ func Init() error {
 	loadProjects()
 	loadTasks()
 	loadExecutions()
+	resetAllProjectsRunning()
 	return nil
+}
+
+func resetAllProjectsRunning() {
+	mu.Lock()
+	defer mu.Unlock()
+	for _, p := range globalStore.Projects {
+		if p.Running {
+			p.Running = false
+		}
+	}
+	if len(globalStore.Projects) > 0 {
+		data, _ := json.MarshalIndent(globalStore.Projects, "", "  ")
+		os.WriteFile(projectsFile, data, 0644)
+	}
 }
 
 func GetStore() *Store {
@@ -191,6 +208,19 @@ func DeleteProject(id string) {
 	os.WriteFile(projectsFile, data, 0644)
 }
 
+func SetProjectRunning(id string, running bool) {
+	mu.Lock()
+	defer mu.Unlock()
+	for _, p := range globalStore.Projects {
+		if p.ID == id {
+			p.Running = running
+			break
+		}
+	}
+	data, _ := json.MarshalIndent(globalStore.Projects, "", "  ")
+	os.WriteFile(projectsFile, data, 0644)
+}
+
 func AddTask(t *Task) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -230,8 +260,12 @@ func AddExecution(e *Execution) {
 	mu.Lock()
 	defer mu.Unlock()
 	globalStore.Executions = append(globalStore.Executions, e)
-	if len(globalStore.Executions) > 100 {
-		globalStore.Executions = globalStore.Executions[len(globalStore.Executions)-100:]
+	maxExecutions := globalStore.Config.MaxExecutions
+	if maxExecutions <= 0 {
+		maxExecutions = 1000
+	}
+	if len(globalStore.Executions) > maxExecutions {
+		globalStore.Executions = globalStore.Executions[len(globalStore.Executions)-maxExecutions:]
 	}
 	data, _ := json.MarshalIndent(globalStore.Executions, "", "  ")
 	os.WriteFile(executionsFile, data, 0644)
