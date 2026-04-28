@@ -72,7 +72,7 @@ func RunProject(execID string, projectID string, force bool, moduleName string) 
 	updateOutput(fmt.Sprintf("本地目录: %s\n", project.LocalDir))
 
 	if project.Type == "backend" {
-		updateOutput(fmt.Sprintf("Java: %s\n", getJavaVersion(javaHome)))
+		updateOutput(fmt.Sprintf("Java: %s\n", GetJavaVersion(javaHome)))
 		if javaHome != "" {
 			updateOutput(fmt.Sprintf("JAVA_HOME: %s\n", javaHome))
 		}
@@ -80,7 +80,7 @@ func RunProject(execID string, projectID string, force bool, moduleName string) 
 			updateOutput(fmt.Sprintf("MAVEN_HOME: %s\n", mavenHome))
 		}
 	} else if project.Type == "frontend" {
-		updateOutput(fmt.Sprintf("Node: %s\n", getNodeVersion(nodeHome)))
+		updateOutput(fmt.Sprintf("Node: %s\n", GetNodeVersion(nodeHome)))
 		if nodeHome != "" {
 			updateOutput(fmt.Sprintf("NODE_HOME: %s\n", nodeHome))
 		}
@@ -471,7 +471,7 @@ func init() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 }
 
-func getJavaVersion(javaHome string) string {
+func GetJavaVersion(javaHome string) string {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
 		cmd = exec.Command("where", "java")
@@ -500,7 +500,30 @@ func getJavaVersion(javaHome string) string {
 	return string(out)
 }
 
-func getNodeVersion(nodeHome string) string {
+func GetMavenVersion(mavenHome string) string {
+	var cmd *exec.Cmd
+	if mavenHome != "" {
+		binDir := "bin"
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command(filepath.Join(mavenHome, binDir, "mvn"), "-version")
+		} else {
+			cmd = exec.Command(filepath.Join(mavenHome, binDir, "mvn"), "-version")
+		}
+	} else {
+		cmd = exec.Command("mvn", "-version")
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "未找到"
+	}
+	lines := strings.Split(string(out), "\n")
+	if len(lines) > 0 {
+		return strings.TrimSpace(lines[0])
+	}
+	return string(out)
+}
+
+func GetNodeVersion(nodeHome string) string {
 	var cmd *exec.Cmd
 	if nodeHome != "" {
 		binDir := "bin"

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"dauto/service/executor"
 	"dauto/service/router"
 	"dauto/service/scheduler"
 	"dauto/service/store"
@@ -22,6 +23,14 @@ func main() {
 	if err := store.Init(); err != nil {
 		log.Printf("初始化存储失败: %v", err)
 	}
+
+	s := store.GetStore()
+	javaHome := s.Config.JavaHome
+	mavenHome := s.Config.MavenHome
+	nodeHome := s.Config.NodeHome
+	fmt.Printf("Java: %s\n", executor.GetJavaVersion(javaHome))
+	fmt.Printf("Maven: %s\n", executor.GetMavenVersion(mavenHome))
+	fmt.Printf("Node: %s\n", executor.GetNodeVersion(nodeHome))
 
 	scheduler.Start()
 
