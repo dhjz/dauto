@@ -358,14 +358,19 @@ var app = createApp({
       return new Date(timestamp).toLocaleString('zh-CN')
     },
     formatDuration(startTime, endTime) {
-      if (!startTime) return '-'
+      if (!startTime) return '<span class="duration">-</span>'
       const end = endTime || Date.now()
       const diff = end - startTime
-      if (diff < 1000) return diff + 'ms'
-      if (diff < 60000) return (diff / 1000).toFixed(1) + '秒'
-      const minutes = Math.floor(diff / 60000)
-      const seconds = ((diff % 60000) / 1000).toFixed(0)
-      return minutes + '分' + seconds + '秒'
+      let text
+      if (diff < 1000) text = diff + 'ms'
+      else if (diff < 60000) text = (diff / 1000).toFixed(1) + '秒'
+      else {
+        const minutes = Math.floor(diff / 60000)
+        const seconds = ((diff % 60000) / 1000).toFixed(0)
+        text = minutes + '分' + seconds + '秒'
+      }
+      const isLong = diff > 10000
+      return '<span class="duration' + (isLong ? ' long' : '') + '">' + text + '</span>'
     },
     formatCron(cron) {
       const parts = cron.split(' ')

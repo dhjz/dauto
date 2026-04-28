@@ -36,6 +36,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 
 .status.failed { background: #fff2f0; color: #ff4d4f; }
 .status.running { background: #e6f7ff; color: #1890ff; }
 .status.pending { background: #fff7e6; color: #fa8c16; }
+.duration.long { color: #1890ff; font-weight: bold; }
 .form-group { margin-bottom: 15px; }
 .form-group label { display: block; margin-bottom: 5px; font-weight: 500; color: #555; }
 .form-group input[type="text"], .form-group input[type="number"], .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }

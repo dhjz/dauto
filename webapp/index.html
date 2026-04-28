@@ -53,7 +53,7 @@
                   <td>{{ getProjectName(e.projectId) }}</td>
                   <td><span :class="'status ' + getStatusClass(e.status)">{{ e.status }}</span></td>
                   <td>{{ formatTime(e.startTime) }}</td>
-                  <td>{{ formatDuration(e.startTime, e.endTime) }}</td>
+                  <td v-html="formatDuration(e.startTime, e.endTime)"></td>
                 </tr>
               </tbody>
             </table>
@@ -142,7 +142,7 @@
                 <td><span :class="'status ' + getStatusClass(e.status)">{{ e.status }}</span></td>
                 <td>{{ formatTime(e.startTime) }}</td>
                 <td>{{ formatTime(e.endTime) }}</td>
-                <td>{{ formatDuration(e.startTime, e.endTime) }}</td>
+                <td v-html="formatDuration(e.startTime, e.endTime)"></td>
               </tr>
               <tr v-if="executions.length === 0">
                 <td colspan="7" class="empty">暂无执行记录</td>
@@ -327,7 +327,7 @@
           <div class="execution-info mb8">
             <span :class="'status ' + getStatusClass(executionDetail.status)">{{ executionDetail.status }}</span>
             <span>开始: {{ formatTime(executionDetail.startTime) }}</span>
-            <span>耗时: {{ formatDuration(executionDetail.startTime, executionDetail.endTime) }}</span>
+            <span>耗时: <span v-html="formatDuration(executionDetail.startTime, executionDetail.endTime)"></span></span>
           </div>
           <div class="execution-output">
             <pre>{{ executionDetail.output || '等待输出...' }}</pre>
