@@ -59,6 +59,7 @@ func RunProject(execID string, projectID string, force bool) (string, error) {
 		if exec != nil {
 			exec.Output += msg
 			store.UpdateExecution(exec)
+			log.Printf(msg)
 		}
 	}
 
@@ -196,8 +197,16 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 
 				if module.StartScript != "" {
 					updateOutput(fmt.Sprintf("执行启动脚本: %s\n", module.StartScript))
-					if err := runCommand(module.DeployDir, "bash", module.StartScript, "restart"); err != nil {
-						log.Printf("启动脚本执行失败: %v", err)
+					script, args := parseScriptAndArgs(module.StartScript)
+					if len(args) > 0 {
+						fullArgs := append([]string{script}, args...)
+						if err := runCommand(module.DeployDir, "bash", fullArgs...); err != nil {
+							log.Printf("启动脚本执行失败: %v", err)
+						}
+					} else {
+						if err := runCommand(module.DeployDir, "bash", module.StartScript, "restart"); err != nil {
+							log.Printf("启动脚本执行失败: %v", err)
+						}
 					}
 				}
 			}
@@ -254,8 +263,16 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 
 			if module.StartScript != "" {
 				updateOutput(fmt.Sprintf("执行启动脚本: %s\n", module.StartScript))
-				if err := runCommand(module.DeployDir, "bash", module.StartScript, "restart"); err != nil {
-					log.Printf("启动脚本执行失败: %v", err)
+				script, args := parseScriptAndArgs(module.StartScript)
+				if len(args) > 0 {
+					fullArgs := append([]string{script}, args...)
+					if err := runCommand(module.DeployDir, "bash", fullArgs...); err != nil {
+						log.Printf("启动脚本执行失败: %v", err)
+					}
+				} else {
+					if err := runCommand(module.DeployDir, "bash", module.StartScript, "restart"); err != nil {
+						log.Printf("启动脚本执行失败: %v", err)
+					}
 				}
 			}
 		}
@@ -315,6 +332,14 @@ func buildFrontend(project *store.Project, config *store.Config, updateOutput fu
 	}
 
 	return nil
+}
+
+func parseScriptAndArgs(script string) (string, []string) {
+	parts := strings.Fields(script)
+	if len(parts) == 0 {
+		return "", nil
+	}
+	return parts[0], parts[1:]
 }
 
 func runCommand(dir string, name string, arg ...string) error {
