@@ -93,17 +93,6 @@ func runTask(task *store.Task) {
 
 	if project.Running {
 		log.Printf("项目 %s 正在运行中，跳过本次执行", project.Name)
-		execID := fmt.Sprintf("exec-%d", time.Now().UnixMilli())
-		exec := &store.Execution{
-			ID:        execID,
-			TaskID:    task.ID,
-			ProjectID: task.ProjectID,
-			Status:    "failed",
-			StartTime: time.Now().UnixMilli(),
-			EndTime:   time.Now().UnixMilli(),
-			Log:       "项目正在运行中，跳过执行",
-		}
-		store.AddExecution(exec)
 		task.LastRun = time.Now().UnixMilli()
 		store.UpdateTask(task)
 		return
