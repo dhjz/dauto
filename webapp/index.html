@@ -49,7 +49,7 @@
               </thead>
               <tbody>
                 <tr v-for="e in recentExecutions" :key="e.id" @click="openExecutionModal(e)" style="cursor:pointer">
-                  <td>{{ e.id.slice(0, 12) }}</td>
+                  <td :title="e.id">{{ e.id.slice(0, 12) }}</td>
                   <td>{{ getProjectName(e.projectId) }}</td>
                   <td><span :class="'status ' + getStatusClass(e.status)">{{ e.status }}</span></td>
                   <td>{{ formatTime(e.startTime) }}</td>
@@ -74,9 +74,9 @@
               <tr v-for="p in projects" :key="p.id">
                 <td>{{ p.name }}</td>
                 <td><span class="tag">{{ p.type }}</span></td>
-                <td class="path">{{ p.repoUrl }}</td>
-                <td class="path">{{ p.localDir }}</td>
-                <td class="path">{{ (p.modules || []).map(m => m.name).join(', ') || '-' }}</td>
+                <td class="path" :title="p.repoUrl">{{ p.repoUrl }}</td>
+                <td class="path" :title="p.localDir">{{ p.localDir }}</td>
+                <td class="path" :title="p.modulesText">{{ p.modulesText || '-' }}</td>
                 <td>
                   <button class="btn small" @click="runProject(p.id)" :disabled="loading">▶ 执行</button>
                   <button class="btn small warning" @click="runProject(p.id, true)" :disabled="loading">⚡ 强制</button>
@@ -107,7 +107,7 @@
                 <td>{{ t.name }}</td>
                 <td>{{ getProjectName(t.projectId) }}</td>
                 <td>{{ getProjectType(t.projectId) }}</td>
-                <td class="cron">{{ formatCron(t.cron) }}</td>
+                <td class="cron" :title="t.cron">{{ formatCron(t.cron) }}</td>
                 <td><button class="btn small" :class="t.enabled ? 'success' : 'default'" @click="toggleTask(t)">{{ t.enabled ? '启用' : '禁用' }}</button></td>
                 <td>{{ formatTime(t.lastRun) }}</td>
                 <td>
@@ -134,9 +134,9 @@
             </thead>
             <tbody>
               <tr v-for="e in executions.slice().reverse()" :key="e.id" @click="openExecutionModal(e)" style="cursor:pointer">
-                <td>{{ e.id }}</td>
+                <td :title="e.id">{{ e.id }}</td>
                 <td>{{ getProjectName(e.projectId) }}</td>
-                <td>{{ e.taskId }}</td>
+                <td :title="e.taskId">{{ e.taskId }}</td>
                 <td><span :class="'status ' + getStatusClass(e.status)">{{ e.status }}</span></td>
                 <td>{{ formatTime(e.startTime) }}</td>
                 <td>{{ formatTime(e.endTime) }}</td>

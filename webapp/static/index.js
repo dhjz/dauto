@@ -99,7 +99,11 @@ var app = createApp({
     async loadProjects() {
       try {
         const res = await fetch(baseUrl + '/api/projects')
-        this.projects = await res.json()
+        const projects = await res.json()
+        projects.forEach(p => {
+          p.modulesText = (p.modules || []).map(m => m.name).join(', ')
+        })
+        this.projects = projects
       } catch (e) {
         console.error('加载项目失败', e)
         this.projects = []
