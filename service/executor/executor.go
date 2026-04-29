@@ -61,7 +61,7 @@ func RunProject(execID string, projectID string, force bool, moduleName string) 
 			store.UpdateExecution(exec)
 			log.Println(msg)
 			if s.Config.WechatWebhook != "" && strings.Contains(msg, "构建部署成功") {
-				msg := fmt.Sprintf("项目构建部署成功: %s, moudle: %s, 耗时: %f 秒", project.Name, moduleName, time.Since(time.UnixMilli(exec.StartTime)).Seconds())
+				msg := fmt.Sprintf("项目构建部署成功: %s, moudle: %s, 耗时: %.1f 秒", project.Name, moduleName, time.Since(time.UnixMilli(exec.StartTime)).Seconds())
 				SendWechatNotification(s.Config.WechatWebhook, msg)
 			}
 		}
