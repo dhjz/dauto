@@ -154,6 +154,47 @@ func checkForChanges(localDir string, branch string) bool {
 	return len(strings.TrimSpace(string(out))) > 0
 }
 
+func getChangedModules(localDir string, branch string, modules []store.Module) []string {
+	cmd := exec.Command("git", "diff", "--name-only", "HEAD", fmt.Sprintf("origin/%s", branch))
+	cmd.Dir = localDir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	changedFiles := strings.Split(strings.TrimSpace(string(out)), "\n")
+	var changedModules []string
+	for _, file := range changedFiles {
+		file = strings.TrimSpace(file)
+		if file == "" {
+			continue
+		}
+		for _, m := range modules {
+			if strings.HasPrefix(file, m.Name+"/") {
+				found := false
+				for _, cm := range changedModules {
+					if cm == m.Name {
+						found = true
+						break
+					}
+				}
+				if !found {
+					changedModules = append(changedModules, m.Name)
+				}
+			}
+		}
+	}
+	return changedModules
+}
+
+func moduleInList(moduleName string, list []string) bool {
+	for _, m := range list {
+		if m == moduleName {
+			return true
+		}
+	}
+	return false
+}
+
 func getFinalOutput(execID string) string {
 	exec := store.GetExecution(execID)
 	if exec != nil {
@@ -202,6 +243,14 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 		modulesToBuild = project.Modules
 	}
 
+	var changedModules []string
+	if !force && project.SkipIfNoChange {
+		changedModules = getChangedModules(project.LocalDir, project.Branch, modulesToBuild)
+		if len(changedModules) > 0 {
+			updateOutput(fmt.Sprintf("变化的模块: %v\n", changedModules))
+		}
+	}
+
 	if hasModuleVar && len(modulesToBuild) > 0 {
 		for _, module := range modulesToBuild {
 			moduleCmd := strings.ReplaceAll(buildCmd, "{module}", module.Name)
@@ -212,7 +261,8 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 			}
 			updateOutput("模块 " + module.Name + " 构建成功\n")
 
-			if module.DeployDir != "" {
+			shouldDeploy := len(changedModules) == 0 || moduleInList(module.Name, changedModules)
+			if shouldDeploy && module.DeployDir != "" {
 				os.MkdirAll(module.DeployDir, 0755)
 				jarPath := findLatestJar(project.LocalDir + "/" + module.Name + "/target")
 				if jarPath != "" {
@@ -278,7 +328,8 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 	updateOutput("构建成功\n")
 
 	for _, module := range modulesToBuild {
-		if module.DeployDir != "" {
+		shouldDeploy := len(changedModules) == 0 || moduleInList(module.Name, changedModules)
+		if shouldDeploy && module.DeployDir != "" {
 			os.MkdirAll(module.DeployDir, 0755)
 			jarPath := findLatestJar(project.LocalDir + "/" + module.Name + "/target")
 			if jarPath != "" {
@@ -310,7 +361,7 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 			}
 		}
 	}
-
+	updateOutput("所有模块构建部署成功\n")
 	return nil
 }
 
