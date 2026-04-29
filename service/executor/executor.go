@@ -96,6 +96,7 @@ func RunProject(execID string, projectID string, force bool, moduleName string) 
 	}
 
 	hasChanges := true
+	changedModules := []string{}
 	if _, err := os.Stat(filepath.Join(project.LocalDir, ".git")); os.IsNotExist(err) {
 		updateOutput("克隆仓库...\n")
 		if err := runCommandWithOutput("", updateOutput, "git", "clone", "-b", project.Branch, project.RepoURL, project.LocalDir); err != nil {
@@ -103,17 +104,34 @@ func RunProject(execID string, projectID string, force bool, moduleName string) 
 			return "", fmt.Errorf("克隆仓库失败: %v", err)
 		}
 		hasChanges = true
+		if project.Type == "backend" {
+			for _, m := range project.Modules {
+				changedModules = append(changedModules, m.Name)
+			}
+		}
 	} else {
 		updateOutput("更新仓库...\n")
 		if err := runCommandWithOutput(project.LocalDir, updateOutput, "git", "fetch", "origin", project.Branch); err != nil {
 			log.Printf("git fetch 警告: %v", err)
 		}
-		if err := runCommandWithOutput(project.LocalDir, updateOutput, "git", "checkout", project.Branch); err != nil {
-			log.Printf("git checkout 警告: %v", err)
-		}
 
 		hasChanges = checkForChanges(project.LocalDir, project.Branch)
 		updateOutput(fmt.Sprintf("代码变更检测: %v\n", hasChanges))
+
+		if hasChanges {
+			if project.Type == "backend" {
+				changedModules = getChangedModules(project.LocalDir, project.Branch, project.Modules)
+				if len(changedModules) > 0 {
+					updateOutput(fmt.Sprintf("变化的模块: %v\n", changedModules))
+				}
+			}
+			if err := runCommandWithOutput(project.LocalDir, updateOutput, "git", "checkout", project.Branch); err != nil {
+				log.Printf("git checkout 警告: %v", err)
+			}
+			if err := runCommandWithOutput(project.LocalDir, updateOutput, "git", "pull", "origin", project.Branch); err != nil {
+				log.Printf("git pull 警告: %v", err)
+			}
+		}
 
 	}
 
@@ -134,7 +152,7 @@ func RunProject(execID string, projectID string, force bool, moduleName string) 
 	}
 
 	if project.Type == "backend" {
-		err := buildBackend(project, projectEnv, updateOutput, force, moduleName)
+		err := buildBackend(project, projectEnv, updateOutput, force, moduleName, changedModules)
 		return getFinalOutput(execID), err
 	} else if project.Type == "frontend" {
 		err := buildFrontend(project, projectEnv, updateOutput, force)
@@ -203,7 +221,7 @@ func getFinalOutput(execID string) string {
 	return ""
 }
 
-func buildBackend(project *store.Project, config *store.Config, updateOutput func(string), force bool, moduleName string) error {
+func buildBackend(project *store.Project, config *store.Config, updateOutput func(string), force bool, moduleName string, changedModules []string) error {
 	// 构建决策:
 	// - force=true: 强制构建所有模块
 	// - 指定moduleName: 构建指定模块
@@ -247,11 +265,6 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 			updateOutput(fmt.Sprintf("未找到模块: %s\n", moduleName))
 			return fmt.Errorf("未找到模块: %s", moduleName)
 		}
-	}
-
-	changedModules := getChangedModules(project.LocalDir, project.Branch, modules)
-	if len(changedModules) > 0 {
-		updateOutput(fmt.Sprintf("变化的模块: %v\n", changedModules))
 	}
 
 	needBuild := false
