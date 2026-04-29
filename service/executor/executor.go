@@ -60,6 +60,10 @@ func RunProject(execID string, projectID string, force bool, moduleName string) 
 			exec.Output += msg
 			store.UpdateExecution(exec)
 			log.Println(msg)
+			if s.Config.WechatWebhook != "" && strings.Contains(msg, "构建部署成功") {
+				msg := fmt.Sprintf("项目构建部署成功: %s, moudle: %s, 耗时: %f 秒", project.Name, moduleName, time.Since(time.UnixMilli(exec.StartTime)).Seconds())
+				SendWechatNotification(s.Config.WechatWebhook, msg)
+			}
 		}
 	}
 
@@ -240,7 +244,7 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 				}
 			}
 		}
-		updateOutput("所有模块构建完成\n")
+		updateOutput("所有模块构建部署成功\n")
 		return nil
 	}
 
@@ -355,7 +359,7 @@ func buildFrontend(project *store.Project, config *store.Config, updateOutput fu
 			if err := copyDir(distDir, deployDir); err != nil {
 				updateOutput(fmt.Sprintf("部署失败: %v\n", err))
 			} else {
-				updateOutput(fmt.Sprintf("部署成功: %s\n", deployDir))
+				updateOutput(fmt.Sprintf("构建部署成功: %s\n", deployDir))
 			}
 		}
 	}

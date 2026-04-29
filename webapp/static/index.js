@@ -34,6 +34,7 @@ var app = createApp({
       projects: [],
       tasks: [],
       executions: [],
+      executionOffset: 0,
       environments: {},
       showProjectModal: false,
       showTaskModal: false,
@@ -81,7 +82,7 @@ var app = createApp({
     this.loadData()
     this.loadEnvironments()
     this.refreshTimer = setInterval(() => {
-      if (this.isLoggedIn) {
+      if (this.isLoggedIn && this.activeTab === 'executions') {
         this.loadExecutions()
       }
     }, 3000)
@@ -183,8 +184,15 @@ var app = createApp({
     },
     async loadExecutions() {
       try {
-        const res = await apiFetch('/api/executions')
-        this.executions = await res.json()
+        const url = `/api/executions?limit=${this.executionOffset || ''}`
+        const res = await apiFetch(url)
+        const newExecutions = await res.json()
+        if (this.executionOffset > 0 && newExecutions.length > 0) {
+          this.executions = [...this.executions, ...newExecutions]
+        } else if (this.executionOffset === 0) {
+          this.executions = newExecutions
+        }
+        this.executionOffset = this.executions.length
         if (this.showExecutionModal && this.executionDetail.id) {
           const current = this.executions.find(e => e.id === this.executionDetail.id)
           if (current) {
@@ -354,12 +362,26 @@ var app = createApp({
         this.executionDetail = { id: data.id, projectId: projectId, status: 'running', startTime: Date.now(), output: '' }
         this.showExecutionModal = true
         this.executionTimer = setInterval(() => {
-          this.loadExecutions()
-        }, 1000)
+          this.loadExecutionDetail(data.id)
+        }, 2000)
       } else if (data.error) {
         alert(data.error)
       }
       setTimeout(() => { this.loading = false }, 2000)
+    },
+    async loadExecutionDetail(id) {
+      try {
+        const res = await apiFetch('/api/executions/' + id)
+        if (res.ok) {
+          this.executionDetail = await res.json()
+          if (this.executionDetail.status !== 'running') {
+            clearInterval(this.executionTimer)
+            this.executionTimer = null
+          }
+        }
+      } catch (e) {
+        console.error('加载执行详情失败', e)
+      }
     },
     async toggleTask(task) {
       const updated = { ...task, enabled: !task.enabled }
@@ -395,7 +417,7 @@ var app = createApp({
       this.showExecutionModal = true
       if (execution.status === 'running') {
         this.executionTimer = setInterval(() => {
-          this.loadExecutions()
+          this.loadExecutionDetail(execution.id)
         }, 1000)
       }
     },

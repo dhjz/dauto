@@ -242,7 +242,20 @@ func handleExecutions(w http.ResponseWriter, r *http.Request) {
 	s := store.GetStore()
 	switch r.Method {
 	case "GET":
-		writeJSON(w, s.Executions)
+		limit := r.URL.Query().Get("limit")
+		var execs []*store.Execution
+		if limit != "" {
+			var n int
+			fmt.Sscanf(limit, "%d", &n)
+			if n >= len(s.Executions) {
+				execs = []*store.Execution{}
+			} else {
+				execs = s.Executions[n:]
+			}
+		} else {
+			execs = s.Executions
+		}
+		writeJSON(w, execs)
 	default:
 		http.Error(w, "method not allowed", 405)
 	}
