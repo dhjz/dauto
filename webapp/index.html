@@ -142,7 +142,7 @@
         <!-- 执行记录 -->
         <div v-if="activeTab === 'executions'" class="executions">
           <div class="toolbar">
-            <h2>执行记录</h2>
+            <h2>执行记录 <span class="tips">（共{{ executions.length }}条记录）</span></h2>
             <button class="btn" @click="loadExecutions()">🔄 刷新</button>
           </div>
           <table class="table">

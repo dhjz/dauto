@@ -124,6 +124,11 @@ func RunProject(execID string, projectID string, force bool, moduleName string) 
 		return getFinalOutput(execID), nil
 	}
 
+	if s.Config.WechatWebhook != "" {
+		msg := fmt.Sprintf("项目开始构建: %s, moudle: %s", project.Name, moduleName)
+		SendWechatNotification(s.Config.WechatWebhook, msg)
+	}
+
 	if project.Type == "backend" {
 		err := buildBackend(project, projectEnv, updateOutput, force, moduleName)
 		return getFinalOutput(execID), err

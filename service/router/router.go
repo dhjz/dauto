@@ -331,12 +331,6 @@ func handleRunProject(w http.ResponseWriter, r *http.Request) {
 		exec.Output = output
 
 		store.UpdateExecution(exec)
-
-		s := store.GetStore()
-		if s.Config.WechatWebhook != "" {
-			msg := fmt.Sprintf("项目构建完成: %s, 状态: %s", req.ProjectID, exec.Status)
-			executor.SendWechatNotification(s.Config.WechatWebhook, msg)
-		}
 	}()
 }
 
