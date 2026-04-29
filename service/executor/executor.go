@@ -121,7 +121,12 @@ func RunProject(execID string, projectID string, force bool, moduleName string) 
 		if hasChanges {
 			if project.Type == "backend" {
 				changedModules = getChangedModules(project.LocalDir, project.Branch, project.Modules)
-				if len(changedModules) > 0 {
+				if len(changedModules) == 0 {
+					for _, m := range project.Modules {
+						changedModules = append(changedModules, m.Name)
+					}
+					updateOutput("未检测到模块级变化，构建所有模块\n")
+				} else {
 					updateOutput(fmt.Sprintf("变化的模块: %v\n", changedModules))
 				}
 			}
