@@ -4,6 +4,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 
 .container { min-height: 100vh; }
 .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
 .header h1 { font-size: 24px; margin-bottom: 15px; }
+.logout { position: absolute; top: 10px; right: 10px; }
 .nav { display: flex; gap: 10px; flex-wrap: wrap; }
 .nav button { background: rgba(255,255,255,0.2); border: none; color: white; padding: 10px 20px; border-radius: 5px; cursor: pointer; transition: all 0.3s; }
 .nav button:hover, .nav button.active { background: rgba(255,255,255,0.3); transform: translateY(-2px); }
@@ -39,8 +40,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 
 .duration.long { color: #1890ff; font-weight: bold; }
 .form-group { margin-bottom: 15px; }
 .form-group label { display: block; margin-bottom: 5px; font-weight: 500; color: #555; }
-.form-group input[type="text"], .form-group input[type="number"], .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }
-.form-group input:focus, .form-group select:focus { outline: none; border-color: #667eea; }
+input:not([type="radio"]), select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }
+input:focus, select:focus { outline: none; border-color: #667eea; }
 .form-group .hint { display: block; margin-top: 5px; font-size: 12px; color: #999; }
 .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
 .modal-content { background: white; padding: 30px; border-radius: 10px; width: 90%; max-width: 1080px; max-height: 86vh; overflow-y: auto; }

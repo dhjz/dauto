@@ -2,10 +2,25 @@ const { createApp } = Vue
 
 const baseUrl = window.location.origin
 
+function apiFetch(url, options = {}) {
+  const token = localStorage.getItem('token')
+  if (token) {
+    options.headers = options.headers || {}
+    options.headers['X-Token'] = token
+  }
+  return fetch(url.startsWith('http') ? url : baseUrl + url, options)
+}
+
 var app = createApp({
   data() {
     return {
       activeTab: 'dashboard',
+      token: localStorage.getItem('token') || '',
+      isLoggedIn: !!localStorage.getItem('token'),
+      showLoginModal: !localStorage.getItem('token'),
+      loginForm: {
+        password: ''
+      },
       config: {
         port: 8002,
         cacheDir: 'cache',
@@ -66,7 +81,9 @@ var app = createApp({
     this.loadData()
     this.loadEnvironments()
     this.refreshTimer = setInterval(() => {
-      this.loadExecutions()
+      if (this.isLoggedIn) {
+        this.loadExecutions()
+      }
     }, 3000)
   },
   beforeUnmount() {
@@ -74,17 +91,58 @@ var app = createApp({
     if (this.executionTimer) clearInterval(this.executionTimer)
   },
   methods: {
+    async login() {
+      const res = await fetch(baseUrl + '/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: this.loginForm.password })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.token) {
+          this.token = data.token
+          localStorage.setItem('token', data.token)
+          this.isLoggedIn = true
+          this.showLoginModal = false
+          this.loginForm.password = ''
+          this.loadData()
+        }
+      } else {
+        alert('密码错误')
+      }
+    },
+    logout() {
+      if (!confirm('确定退出登录吗？')) return
+      this.token = ''
+      localStorage.removeItem('token')
+      this.isLoggedIn = false
+      this.projects = []
+      this.tasks = []
+      this.executions = []
+    },
+    async checkLogin() {
+      if (!this.isLoggedIn) {
+        this.showLoginModal = true
+        return false
+      }
+      return true
+    },
     async loadData() {
+      if (!this.isLoggedIn) return
       await Promise.all([
         this.loadConfig(),
         this.loadProjects(),
         this.loadTasks(),
         this.loadExecutions()
-      ])
+      ]).catch((err) => {
+        if (err.message && err.message.includes('401')) {
+          this.showLoginModal = true
+        }
+      })
     },
     async loadConfig() {
       try {
-        const res = await fetch(baseUrl + '/api/config')
+        const res = await apiFetch('/api/config')
         const data = await res.json()
         if (data && Object.keys(data).length > 0) {
           this.config = { ...this.config, ...data }
@@ -94,7 +152,7 @@ var app = createApp({
       }
     },
     async saveConfig() {
-      await fetch(baseUrl + '/api/config', {
+      await apiFetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(this.config)
@@ -103,7 +161,7 @@ var app = createApp({
     },
     async loadProjects() {
       try {
-        const res = await fetch(baseUrl + '/api/projects')
+        const res = await apiFetch('/api/projects')
         const projects = await res.json()
         projects.forEach(p => {
           p.modulesText = (p.modules || []).map(m => m.name).join(', ')
@@ -116,7 +174,7 @@ var app = createApp({
     },
     async loadTasks() {
       try {
-        const res = await fetch(baseUrl + '/api/tasks')
+        const res = await apiFetch('/api/tasks')
         this.tasks = await res.json()
       } catch (e) {
         console.error('加载任务失败', e)
@@ -125,7 +183,7 @@ var app = createApp({
     },
     async loadExecutions() {
       try {
-        const res = await fetch(baseUrl + '/api/executions')
+        const res = await apiFetch('/api/executions')
         this.executions = await res.json()
         if (this.showExecutionModal && this.executionDetail.id) {
           const current = this.executions.find(e => e.id === this.executionDetail.id)
@@ -139,8 +197,9 @@ var app = createApp({
       }
     },
     async loadEnvironments() {
+      if (!this.isLoggedIn) return
       try {
-        const res = await fetch(baseUrl + '/api/environments')
+        const res = await apiFetch('/api/environments')
         this.environments = await res.json()
       } catch (e) {
         console.error('加载环境变量失败', e)
@@ -203,10 +262,10 @@ var app = createApp({
         mavenHome: this.projectForm.mavenHome,
         nodeHome: this.projectForm.nodeHome
       }
-      let url = baseUrl + '/api/projects'
+      let url = '/api/projects'
       let method = 'POST'
       if (this.editingProject) {
-        url = baseUrl + '/api/projects/' + this.editingProject.id
+        url = '/api/projects/' + this.editingProject.id
         method = 'PUT'
       }
       await fetch(url, {
@@ -219,7 +278,7 @@ var app = createApp({
     },
     async deleteProject(id) {
       if (confirm('确定删除该项目?')) {
-        await fetch(baseUrl + '/api/projects/' + id, { method: 'DELETE' })
+        await apiFetch('/api/projects/' + id, { method: 'DELETE' })
         this.loadProjects()
       }
     },
@@ -263,10 +322,10 @@ var app = createApp({
     },
     async saveTask() {
       const data = { ...this.taskForm }
-      let url = baseUrl + '/api/tasks'
+      let url = '/api/tasks'
       let method = 'POST'
       if (this.editingTask) {
-        url = baseUrl + '/api/tasks/' + this.editingTask.id
+        url = '/api/tasks/' + this.editingTask.id
         method = 'PUT'
       }
       await fetch(url, {
@@ -279,13 +338,13 @@ var app = createApp({
     },
     async deleteTask(id) {
       if (confirm('确定删除该任务?')) {
-        await fetch(baseUrl + '/api/tasks/' + id, { method: 'DELETE' })
+        await apiFetch('/api/tasks/' + id, { method: 'DELETE' })
         this.loadTasks()
       }
     },
     async runProject(projectId, force = false, module = '') {
       this.loading = true
-      const res = await fetch(baseUrl + '/api/run', {
+      const res = await apiFetch('/api/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId, force, module })
@@ -304,7 +363,7 @@ var app = createApp({
     },
     async toggleTask(task) {
       const updated = { ...task, enabled: !task.enabled }
-      await fetch(baseUrl + '/api/tasks/' + task.id, {
+      await apiFetch('/api/tasks/' + task.id, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated)

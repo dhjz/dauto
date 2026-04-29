@@ -1,9 +1,11 @@
 package router
 
 import (
+	"crypto/md5"
 	"dauto/service/executor"
 	"dauto/service/scheduler"
 	"dauto/service/store"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,24 +18,76 @@ import (
 	"github.com/google/uuid"
 )
 
-func SetupRoutesAPI(mux *http.ServeMux) {
-	mux.HandleFunc("/api/config", corsHandler(handleConfig))
-	mux.HandleFunc("/api/projects", corsHandler(handleProjects))
-	mux.HandleFunc("/api/projects/", corsHandler(handleProjectDetail))
-	mux.HandleFunc("/api/tasks", corsHandler(handleTasks))
-	mux.HandleFunc("/api/tasks/", corsHandler(handleTaskDetail))
-	mux.HandleFunc("/api/executions", corsHandler(handleExecutions))
-	mux.HandleFunc("/api/executions/", corsHandler(handleExecutionDetail))
-	mux.HandleFunc("/api/run", corsHandler(handleRunProject))
-	mux.HandleFunc("/api/build", corsHandler(handleBuild))
-	mux.HandleFunc("/api/environments", corsHandler(handleEnvironments))
+var token string
+
+func SetupRoutesAPI(mux *http.ServeMux, password string) {
+	if password != "" {
+		hash := md5.Sum([]byte(password))
+		token = hex.EncodeToString(hash[:])
+		log.Printf("Token 已启用")
+	}
+
+	mux.HandleFunc("/api/login", corsHandler(handleLogin))
+	mux.HandleFunc("/api/config", corsHandler(authHandler(handleConfig)))
+	mux.HandleFunc("/api/projects", corsHandler(authHandler(handleProjects)))
+	mux.HandleFunc("/api/projects/", corsHandler(authHandler(handleProjectDetail)))
+	mux.HandleFunc("/api/tasks", corsHandler(authHandler(handleTasks)))
+	mux.HandleFunc("/api/tasks/", corsHandler(authHandler(handleTaskDetail)))
+	mux.HandleFunc("/api/executions", corsHandler(authHandler(handleExecutions)))
+	mux.HandleFunc("/api/executions/", corsHandler(authHandler(handleExecutionDetail)))
+	mux.HandleFunc("/api/run", corsHandler(authHandler(handleRunProject)))
+	mux.HandleFunc("/api/build", corsHandler(authHandler(handleBuild)))
+	mux.HandleFunc("/api/environments", corsHandler(authHandler(handleEnvironments)))
+}
+
+func authHandler(fn http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if token == "" {
+			fn(w, r)
+			return
+		}
+		reqToken := r.Header.Get("X-Token")
+		if reqToken == "" {
+			reqToken = r.URL.Query().Get("token")
+		}
+		if reqToken != token {
+			http.Error(w, "Unauthorized", 401)
+			return
+		}
+		fn(w, r)
+	}
+}
+
+func handleLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	if token == "" {
+		writeJSON(w, map[string]bool{"success": true})
+		return
+	}
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	hash := md5.Sum([]byte(req.Password))
+	inputToken := hex.EncodeToString(hash[:])
+	if inputToken == token {
+		writeJSON(w, map[string]string{"token": token})
+	} else {
+		http.Error(w, "密码错误", 401)
+	}
 }
 
 func corsHandler(fn http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Token")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
