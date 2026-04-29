@@ -89,9 +89,13 @@ var app = createApp({
   },
   beforeUnmount() {
     if (this.refreshTimer) clearInterval(this.refreshTimer)
-    if (this.executionTimer) clearInterval(this.executionTimer)
+    this.clearExecutionTimer()
   },
   methods: {
+    clearExecutionTimer() {
+      if (this.executionTimer) clearInterval(this.executionTimer)
+      this.executionTimer = null
+    },
     async login() {
       const res = await fetch(baseUrl + '/api/login', {
         method: 'POST',
@@ -182,12 +186,14 @@ var app = createApp({
         this.tasks = []
       }
     },
-    async loadExecutions() {
+    async loadExecutions(force = false) {
       try {
-        const url = `/api/executions?limit=${this.executionOffset || ''}`
+        const url = `/api/executions?limit=${force === true ? '': (this.executionOffset || '')}`
         const res = await apiFetch(url)
         const newExecutions = await res.json()
-        if (this.executionOffset > 0 && newExecutions.length > 0) {
+        if (force === true) {
+          this.executions = newExecutions
+        } else if (this.executionOffset > 0 && newExecutions.length > 0) {
           this.executions = [...this.executions, ...newExecutions]
         } else if (this.executionOffset === 0) {
           this.executions = newExecutions
@@ -276,7 +282,7 @@ var app = createApp({
         url = '/api/projects/' + this.editingProject.id
         method = 'PUT'
       }
-      await fetch(url, {
+      await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -336,7 +342,7 @@ var app = createApp({
         url = '/api/tasks/' + this.editingTask.id
         method = 'PUT'
       }
-      await fetch(url, {
+      await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -361,6 +367,7 @@ var app = createApp({
       if (res.ok && data.id) {
         this.executionDetail = { id: data.id, projectId: projectId, status: 'running', startTime: Date.now(), output: '' }
         this.showExecutionModal = true
+        this.clearExecutionTimer()
         this.executionTimer = setInterval(() => {
           this.loadExecutionDetail(data.id)
         }, 2000)
@@ -375,8 +382,7 @@ var app = createApp({
         if (res.ok) {
           this.executionDetail = await res.json()
           if (this.executionDetail.status !== 'running') {
-            clearInterval(this.executionTimer)
-            this.executionTimer = null
+            this.clearExecutionTimer()
           }
         }
       } catch (e) {
@@ -416,6 +422,7 @@ var app = createApp({
       this.executionDetail = execution
       this.showExecutionModal = true
       if (execution.status === 'running') {
+        this.clearExecutionTimer()
         this.executionTimer = setInterval(() => {
           this.loadExecutionDetail(execution.id)
         }, 1000)
@@ -423,10 +430,7 @@ var app = createApp({
     },
     closeExecutionModal() {
       this.showExecutionModal = false
-      if (this.executionTimer) {
-        clearInterval(this.executionTimer)
-        this.executionTimer = null
-      }
+      this.clearExecutionTimer()
     },
     getProjectName(projectId) {
       const p = this.projects.find(p => p.id === projectId)

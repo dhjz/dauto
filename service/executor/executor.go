@@ -204,6 +204,14 @@ func getFinalOutput(execID string) string {
 }
 
 func buildBackend(project *store.Project, config *store.Config, updateOutput func(string), force bool, moduleName string) error {
+	// 构建决策:
+	// - force=true: 强制构建所有模块
+	// - 指定moduleName: 构建指定模块
+	// - SkipIfNoChange=false: 每次都构建
+	// - 有变化的模块: 构建变化的模块
+	// 部署决策:
+	// - 需要构建的模块才部署
+	// - SkipIfNoChange=true且有变化模块时，只部署变化的模块
 	updateOutput("开始构建后端项目...\n")
 
 	env := os.Getenv("PATH")
@@ -227,141 +235,97 @@ func buildBackend(project *store.Project, config *store.Config, updateOutput fun
 
 	hasModuleVar := strings.Contains(buildCmd, "{module}")
 
-	var modulesToBuild []store.Module
+	modules := project.Modules
 	if moduleName != "" {
-		for _, m := range project.Modules {
+		for _, m := range modules {
 			if m.Name == moduleName {
-				modulesToBuild = []store.Module{m}
+				modules = []store.Module{m}
 				break
 			}
 		}
-		if len(modulesToBuild) == 0 {
+		if len(modules) == 0 {
 			updateOutput(fmt.Sprintf("未找到模块: %s\n", moduleName))
 			return fmt.Errorf("未找到模块: %s", moduleName)
 		}
-	} else {
-		modulesToBuild = project.Modules
 	}
 
-	var changedModules []string
-	if !force && project.SkipIfNoChange {
-		changedModules = getChangedModules(project.LocalDir, project.Branch, modulesToBuild)
-		if len(changedModules) > 0 {
-			updateOutput(fmt.Sprintf("变化的模块: %v\n", changedModules))
-		}
+	changedModules := getChangedModules(project.LocalDir, project.Branch, modules)
+	if len(changedModules) > 0 {
+		updateOutput(fmt.Sprintf("变化的模块: %v\n", changedModules))
 	}
 
-	if hasModuleVar && len(modulesToBuild) > 0 {
-		for _, module := range modulesToBuild {
+	needBuild := false
+	force = force || !project.SkipIfNoChange
+	if force {
+		needBuild = true
+	} else if len(changedModules) > 0 {
+		needBuild = moduleName == "" || moduleInList(moduleName, changedModules)
+	}
+
+	if !needBuild {
+		updateOutput("未发生变更或无需部署，跳过构建\n")
+		return nil
+	}
+
+	updateOutput("执行构建命令: " + buildCmd + "\n")
+	if hasModuleVar {
+		for _, module := range modules {
 			moduleCmd := strings.ReplaceAll(buildCmd, "{module}", module.Name)
-			updateOutput("执行构建命令: " + moduleCmd + "\n")
+			updateOutput("构建模块: " + module.Name + "\n")
 			if err := runCommandWithEnvAndOutput(project.LocalDir, moduleCmd, env, updateOutput); err != nil {
 				updateOutput(fmt.Sprintf("模块 %s 构建失败: %v\n", module.Name, err))
 				return err
 			}
-			updateOutput("模块 " + module.Name + " 构建成功\n")
-
-			shouldDeploy := len(changedModules) == 0 || moduleInList(module.Name, changedModules)
-			if shouldDeploy && module.DeployDir != "" {
-				os.MkdirAll(module.DeployDir, 0755)
-				jarPath := findLatestJar(project.LocalDir + "/" + module.Name + "/target")
-				if jarPath != "" {
-					deployPath := module.DeployDir
-					os.MkdirAll(deployPath, 0755)
-					destPath := filepath.Join(deployPath, filepath.Base(jarPath))
-					if err := copyFile(jarPath, destPath); err != nil {
-						updateOutput(fmt.Sprintf("复制JAR失败: %v\n", err))
-					} else {
-						updateOutput(fmt.Sprintf("部署JAR: %s -> %s\n", jarPath, destPath))
-					}
-				} else {
-					updateOutput(fmt.Sprintf("未找到模块 %s 的JAR文件\n", module.Name))
-				}
-
-				if module.StartScript != "" {
-					updateOutput(fmt.Sprintf("执行启动脚本: %s\n", module.StartScript))
-					script, args := parseScriptAndArgs(module.StartScript)
-					if len(args) > 0 {
-						fullArgs := append([]string{script}, args...)
-						if err := runCommand(module.DeployDir, "bash", fullArgs...); err != nil {
-							log.Printf("启动脚本执行失败: %v", err)
-						}
-					} else {
-						if err := runCommand(module.DeployDir, "bash", module.StartScript, "restart"); err != nil {
-							log.Printf("启动脚本执行失败: %v", err)
-						}
-					}
-				}
-			}
 		}
-		updateOutput("所有模块构建部署成功\n")
-		return nil
-	}
-
-	if !force && project.SkipIfNoChange {
-		updateOutput("检测Maven模块变更...\n")
-		changed := false
-		for _, module := range modulesToBuild {
-			jarPath := findLatestJar(project.LocalDir + "/" + module.Name + "/target")
-			if jarPath != "" {
-				stat, err := os.Stat(jarPath)
-				if err == nil {
-					if stat.ModTime().After(time.Now().Add(-24 * time.Hour)) {
-						changed = true
-						updateOutput(fmt.Sprintf("模块 %s 有新构建: %s\n", module.Name, filepath.Base(jarPath)))
-					}
-				}
-			}
-		}
-		if !changed {
-			updateOutput("所有模块无可用构建产物，跳过构建\n")
-			return nil
+	} else {
+		if err := runCommandWithEnvAndOutput(project.LocalDir, buildCmd, env, updateOutput); err != nil {
+			updateOutput(fmt.Sprintf("构建失败: %v\n", err))
+			return err
 		}
 	}
-
-	updateOutput("执行构建命令: " + buildCmd + "\n")
-	if err := runCommandWithEnvAndOutput(project.LocalDir, buildCmd, env, updateOutput); err != nil {
-		updateOutput(fmt.Sprintf("构建失败: %v\n", err))
-		return err
-	}
-
 	updateOutput("构建成功\n")
 
-	for _, module := range modulesToBuild {
-		shouldDeploy := len(changedModules) == 0 || moduleInList(module.Name, changedModules)
-		if shouldDeploy && module.DeployDir != "" {
-			os.MkdirAll(module.DeployDir, 0755)
-			jarPath := findLatestJar(project.LocalDir + "/" + module.Name + "/target")
-			if jarPath != "" {
-				deployPath := module.DeployDir
-				os.MkdirAll(deployPath, 0755)
-				destPath := filepath.Join(deployPath, filepath.Base(jarPath))
-				if err := copyFile(jarPath, destPath); err != nil {
-					updateOutput(fmt.Sprintf("复制JAR失败: %v\n", err))
-				} else {
-					updateOutput(fmt.Sprintf("部署JAR: %s -> %s\n", jarPath, destPath))
+	for _, module := range modules {
+		if moduleName != "" && module.Name != moduleName { // 只部署指定模块
+			continue
+		}
+		if !force && len(changedModules) > 0 && !moduleInList(module.Name, changedModules) {
+			updateOutput(fmt.Sprintf("模块 %s 无变化，跳过部署\n", module.Name))
+			continue
+		}
+		if module.DeployDir == "" {
+			continue
+		}
+		os.MkdirAll(module.DeployDir, 0755)
+		jarPath := findLatestJar(project.LocalDir + "/" + module.Name + "/target")
+		if jarPath == "" {
+			updateOutput(fmt.Sprintf("未找到模块 %s 的JAR文件\n", module.Name))
+			continue
+		}
+		destPath := filepath.Join(module.DeployDir, filepath.Base(jarPath))
+		if err := copyFile(jarPath, destPath); err != nil {
+			updateOutput(fmt.Sprintf("复制JAR失败: %v\n", err))
+		} else {
+			updateOutput(fmt.Sprintf("部署JAR: %s -> %s\n", jarPath, destPath))
+		}
+
+		if module.StartScript != "" {
+			updateOutput(fmt.Sprintf("执行启动脚本: %s\n", module.StartScript))
+			script, args := parseScriptAndArgs(module.StartScript)
+			if len(args) > 0 {
+				fullArgs := append([]string{script}, args...)
+				if err := runCommand(module.DeployDir, "bash", fullArgs...); err != nil {
+					log.Printf("启动脚本执行失败: %v", err)
 				}
 			} else {
-				updateOutput(fmt.Sprintf("未找到模块 %s 的JAR文件\n", module.Name))
-			}
-
-			if module.StartScript != "" {
-				updateOutput(fmt.Sprintf("执行启动脚本: %s\n", module.StartScript))
-				script, args := parseScriptAndArgs(module.StartScript)
-				if len(args) > 0 {
-					fullArgs := append([]string{script}, args...)
-					if err := runCommand(module.DeployDir, "bash", fullArgs...); err != nil {
-						log.Printf("启动脚本执行失败: %v", err)
-					}
-				} else {
-					if err := runCommand(module.DeployDir, "bash", module.StartScript, "restart"); err != nil {
-						log.Printf("启动脚本执行失败: %v", err)
-					}
+				if err := runCommand(module.DeployDir, "bash", module.StartScript, "restart"); err != nil {
+					log.Printf("启动脚本执行失败: %v", err)
 				}
 			}
 		}
 	}
-	updateOutput("所有模块构建部署成功\n")
+
+	updateOutput("构建部署成功\n")
 	return nil
 }
 
