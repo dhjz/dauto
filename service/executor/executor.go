@@ -120,15 +120,8 @@ func RunProject(execID string, projectID string, force bool, moduleName string) 
 
 		if hasChanges {
 			if project.Type == "backend" {
-				changedModules = getChangedModules(project.LocalDir, project.Branch, project.Modules)
-				if len(changedModules) == 0 {
-					for _, m := range project.Modules {
-						changedModules = append(changedModules, m.Name)
-					}
-					updateOutput("未检测到模块级变化，构建所有模块\n")
-				} else {
-					updateOutput(fmt.Sprintf("变化的模块: %v\n", changedModules))
-				}
+				changedModules = getChangedModules(project)
+				updateOutput(fmt.Sprintf("变化的模块: %v\n", changedModules))
 			}
 			if err := runCommandWithOutput(project.LocalDir, updateOutput, "git", "checkout", project.Branch); err != nil {
 				log.Printf("git checkout 警告: %v", err)
@@ -177,33 +170,45 @@ func checkForChanges(localDir string, branch string) bool {
 	return len(strings.TrimSpace(string(out))) > 0
 }
 
-func getChangedModules(localDir string, branch string, modules []store.Module) []string {
-	cmd := exec.Command("git", "diff", "--name-only", "HEAD", fmt.Sprintf("origin/%s", branch))
-	cmd.Dir = localDir
+func getChangedModules(project *store.Project) []string {
+	if len(project.Modules) == 0 {
+		return []string{}
+	}
+	cmd := exec.Command("git", "diff", "--name-only", "HEAD", fmt.Sprintf("origin/%s", project.Branch))
+	cmd.Dir = project.LocalDir
 	out, err := cmd.Output()
 	if err != nil {
 		return nil
 	}
 	changedFiles := strings.Split(strings.TrimSpace(string(out)), "\n")
+	var moduleNames []string
+	for _, m := range project.Modules {
+		moduleNames = append(moduleNames, m.Name)
+	}
 	var changedModules []string
+	inModuleDir := map[string]bool{}
 	for _, file := range changedFiles {
 		file = strings.TrimSpace(file)
 		if file == "" {
 			continue
 		}
-		for _, m := range modules {
-			if strings.HasPrefix(file, m.Name+"/") {
-				found := false
-				for _, cm := range changedModules {
-					if cm == m.Name {
-						found = true
-						break
-					}
-				}
-				if !found {
-					changedModules = append(changedModules, m.Name)
+		for _, m := range moduleNames {
+			if strings.HasPrefix(file, m+"/") {
+				inModuleDir[file] = true
+				if !moduleInList(m, changedModules) {
+					changedModules = append(changedModules, m)
 				}
 			}
+		}
+	}
+	for _, file := range changedFiles {
+		file = strings.TrimSpace(file)
+		if file == "" {
+			continue
+		}
+		if !inModuleDir[file] {
+			changedModules = moduleNames
+			break
 		}
 	}
 	return changedModules
