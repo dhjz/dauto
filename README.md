@@ -82,3 +82,13 @@ go build -o dauto .
 - 每5分钟：`0 */5 * * * *`
 - 每小时：`0 0 * * * *`
 - 每天凌晨2点：`0 0 2 * * *`
+
+# 其他说明
+- 页面效果图见`appimg`目录
+- <img src="https://gcore.jsdelivr.net/gh/dhjz/dauto@main/appimg/app1.jpg" style="width: 340px;"/>
+- <img src="https://gcore.jsdelivr.net/gh/dhjz/dauto@main/appimg/app2.jpg" style="width: 340px;"/>
+- <img src="https://gcore.jsdelivr.net/gh/dhjz/dauto@main/appimg/app3.jpg" style="width: 340px;"/>
+- <img src="https://gcore.jsdelivr.net/gh/dhjz/dauto@main/appimg/app4.jpg" style="width: 340px;"/>
+
+
+- 项目地址: [https://github.com/dhjz/dauto]( https://github.com/dhjz/dauto)  
