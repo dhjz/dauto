@@ -56,6 +56,11 @@
               <div class="stat-label">正在运行</div>
             </div>
           </div>
+          <div class="env-info">
+            <span>Java: {{ environments.java || '未检测' }}</span>
+            <span>Maven: {{ environments.maven || '未检测' }}</span>
+            <span>Node: {{ environments.node || '未检测' }}</span>
+          </div>
           <div class="recent">
             <h3>最近执行</h3>
             <table class="table">

@@ -357,13 +357,15 @@ func handleEnvironments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s := store.GetStore()
+	javaHome := s.Config.JavaHome
+	mavenHome := s.Config.MavenHome
+	nodeHome := s.Config.NodeHome
+
 	envs := map[string]string{
-		"java":  findCommand("java"),
-		"maven": findCommand("mvn"),
-		"node":  findCommand("node"),
-		"npm":   findCommand("npm"),
-		"git":   findCommand("git"),
-		"curl":  findCommand("curl"),
+		"java":  executor.GetJavaVersion(javaHome),
+		"maven": executor.GetMavenVersion(mavenHome),
+		"node":  executor.GetNodeVersion(nodeHome),
 	}
 
 	writeJSON(w, envs)
