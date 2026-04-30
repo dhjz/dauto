@@ -15,7 +15,7 @@ echo "build linux success..."
 @REM echo "build linux-arm64 success..."
 
 go env -w GOOS=windows GOARCH=amd64 GOARM=
-@REM go build -o ./dist/dhttpc_debug.exe
+go build -ldflags "-s -w" -o ./dist/dauto_debug.exe
 go build -ldflags "-s -w -H=windowsgui" -o ./dist/
 echo "build windows exe success..."
 pause

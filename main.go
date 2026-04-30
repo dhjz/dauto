@@ -18,7 +18,7 @@ var f embed.FS
 
 func main() {
 	port := flag.Int("p", 8002, "server port")
-	password := flag.String("pwd", "", "password")
+	password := flag.String("pwd", "111", "password")
 	flag.Parse()
 
 	if err := store.Init(); err != nil {
