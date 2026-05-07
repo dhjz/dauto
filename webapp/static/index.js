@@ -75,6 +75,7 @@ var app = createApp({
       logContent: '',
       logTailLines: 5000,
       autoScroll: true,
+      autoWrapLog: true,
       logEventSource: null
     }
   },
@@ -483,6 +484,12 @@ var app = createApp({
     loadLogFiles() {
       const files = localStorage.getItem('logFiles')
       this.logFiles = files ? JSON.parse(files) : []
+      const tailLines = localStorage.getItem('logTailLines')
+      if (tailLines) {
+        this.logTailLines = parseInt(tailLines) || 5000
+      }
+      const autoWrap = localStorage.getItem('autoWrapLog')
+      this.autoWrapLog = autoWrap !== null ? autoWrap === 'true' : true
     },
     addLogFile() {
       if (!this.newLogFilePath.trim()) {
@@ -530,6 +537,7 @@ var app = createApp({
       }
     },
     reloadLog() {
+      localStorage.setItem('logTailLines', this.logTailLines)
       if (this.selectedLogFile) {
         this.startLogStream()
       }

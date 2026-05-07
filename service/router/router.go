@@ -1,6 +1,7 @@
 package router
 
 import (
+	"bufio"
 	"crypto/md5"
 	"dauto/service/executor"
 	"dauto/service/scheduler"
@@ -451,16 +452,11 @@ func handleLog(w http.ResponseWriter, r *http.Request) {
 		cmd.Process.Kill()
 	}()
 
-	buffer := make([]byte, 1024)
-	for {
-		n, err := stdout.Read(buffer)
-		if err != nil {
-			break
-		}
-		if n > 0 {
-			fmt.Fprintf(w, "data: %s\n\n", strings.TrimSpace(string(buffer[:n])))
-			flusher.Flush()
-		}
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fmt.Fprintf(w, "data: %s\n\n", line)
+		flusher.Flush()
 	}
 
 	cmd.Wait()

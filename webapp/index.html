@@ -181,11 +181,12 @@
               <option v-for="f in logFiles" :key="f" :value="f">{{ f }}</option>
             </select>
             <label><input type="checkbox" v-model="autoScroll" /> 自动滚动</label>
+            <label><input type="checkbox" v-model="autoWrapLog" /> 自动换行</label>
             <input type="number" v-model="logTailLines" @change="reloadLog" style="width: 80px;" placeholder="行数" />
             <span>行</span>
           </div>
           <div class="log-content" ref="logContent">
-            <pre>{{ logContent }}</pre>
+            <pre :class="{ 'no-wrap': !autoWrapLog }">{{ logContent }}</pre>
           </div>
         </div>
 
