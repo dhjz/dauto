@@ -73,6 +73,7 @@ var app = createApp({
       logFiles: [],
       selectedLogFile: '',
       logContent: '',
+      logElement: null,
       logTailLines: 5000,
       autoScroll: true,
       autoWrapLog: true,
@@ -507,25 +508,38 @@ var app = createApp({
     },
     startLogStream() {
       if (!this.selectedLogFile) {
-        this.logContent = ''
+        if (this.$refs.logContent) {
+          this.$refs.logContent.innerHTML = ''
+        }
         this.stopLogStream()
         return
       }
       this.stopLogStream()
-      this.logContent = ''
       const token = localStorage.getItem('token')
       const tokenParam = token ? '&token=' + token : ''
+
+      this.logElement = this.$refs.logContent
+      if (this.logElement) {
+        this.logElement.innerHTML = ''
+      }
 
       fetch(`${baseUrl}/api/log/tail?path=${encodeURIComponent(this.selectedLogFile)}&lines=${this.logTailLines}${tokenParam}`)
         .then(res => res.json())
         .then(data => {
-          if (data.content) {
-            this.logContent = data.content
-            this.$nextTick(() => {
-              if (this.autoScroll && this.$refs.logContent) {
-                this.$refs.logContent.scrollTop = this.$refs.logContent.scrollHeight
+          if (data.content && this.logElement) {
+            const lines = data.content.split('\n')
+            const fragment = document.createDocumentFragment()
+            lines.forEach(line => {
+              if (line.trim()) {
+                const div = document.createElement('div')
+                div.textContent = line
+                fragment.appendChild(div)
               }
             })
+            this.logElement.appendChild(fragment)
+            if (this.autoScroll) {
+              this.logElement.scrollTop = this.logElement.scrollHeight
+            }
           }
         })
         .catch(err => {
@@ -535,13 +549,19 @@ var app = createApp({
       const streamUrl = `${baseUrl}/api/log/stream?path=${encodeURIComponent(this.selectedLogFile)}${tokenParam}`
       this.logEventSource = new EventSource(streamUrl)
       this.logEventSource.onmessage = (e) => {
-        if (e.data) {
-          this.logContent += e.data + '\n'
-          this.$nextTick(() => {
-            if (this.autoScroll && this.$refs.logContent) {
-              this.$refs.logContent.scrollTop = this.$refs.logContent.scrollHeight
-            }
-          })
+        if (e.data && this.logElement) {
+          const div = document.createElement('div')
+          div.textContent = e.data
+          this.logElement.appendChild(div)
+
+          // const maxLines = this.maxLogLines
+          // while (this.logElement.children.length > maxLines) {
+          //   this.logElement.removeChild(this.logElement.firstChild)
+          // }
+
+          if (this.autoScroll) {
+            this.logElement.scrollTop = this.logElement.scrollHeight
+          }
         }
       }
       this.logEventSource.onerror = () => {
