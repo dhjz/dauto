@@ -559,6 +559,12 @@ var app = createApp({
       if (this.selectedLogFile) {
         this.startLogStream()
       }
+    },
+    copyLogPath() {
+      if (this.selectedLogFile) {
+        copyText(this.selectedLogFile)
+        notify('路径已复制', 1)
+      }
     }
   }
 })

@@ -57,7 +57,7 @@ input:focus, select:focus { outline: none; border-color: #667eea; }
 pre { font-family: inherit;  }
 .log-monitor { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
 .log-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
-.log-controls select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; max-width: 300px; }
+.log-controls select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; max-width: 420px; }
 .log-controls input[type="number"] { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
 .log-controls label { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
 .log-content { background: #1e1e1e; color: #fff; padding: 15px; border-radius: 8px; height: calc(100vh - 280px); overflow: auto; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.5; }

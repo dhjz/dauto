@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DAuto 自动化部署系统</title>
+  <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="static/index.css">
 </head>
 <body>
@@ -184,6 +185,7 @@
             <label><input type="checkbox" v-model="autoWrapLog" /> 自动换行</label>
             <input type="number" v-model="logTailLines" @change="reloadLog" style="width: 80px;" placeholder="行数" />
             <span>行</span>
+            <button class="btn small" @click="copyLogPath" :disabled="!selectedLogFile">复制路径</button>
           </div>
           <div class="log-content" ref="logContent">
             <pre :class="{ 'no-wrap': !autoWrapLog }">{{ logContent }}</pre>
