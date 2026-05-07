@@ -38,6 +38,7 @@ func SetupRoutesAPI(mux *http.ServeMux, password string) {
 	mux.HandleFunc("/api/run", corsHandler(authHandler(handleRunProject)))
 	mux.HandleFunc("/api/build", corsHandler(authHandler(handleBuild)))
 	mux.HandleFunc("/api/environments", corsHandler(authHandler(handleEnvironments)))
+	mux.HandleFunc("/api/log", corsHandler(authHandler(handleLog)))
 }
 
 func authHandler(fn http.HandlerFunc) http.HandlerFunc {
@@ -387,6 +388,82 @@ func findCommand(name string) string {
 		return strings.TrimSpace(lines[0])
 	}
 	return ""
+}
+
+func handleLog(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+
+	filePath := r.URL.Query().Get("path")
+	tailLines := r.URL.Query().Get("lines")
+	if filePath == "" {
+		http.Error(w, "path is required", 400)
+		return
+	}
+
+	if runtime.GOOS == "linux" {
+		if !strings.HasPrefix(filePath, "/data/") && !strings.HasPrefix(filePath, "/opt/") {
+			http.Error(w, "安全限制: Linux系统只允许监控 /data 和 /opt 目录下的文件", 403)
+			return
+		}
+	}
+
+	lines := 5000
+	if tailLines != "" {
+		fmt.Sscanf(tailLines, "%d", &lines)
+	}
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("powershell", "-Command", "Get-Content -Path '"+filePath+"' -Tail "+fmt.Sprintf("%d", lines)+" -Wait -Encoding UTF8")
+	} else {
+		cmd = exec.Command("tail", "-n", fmt.Sprintf("%d", lines), "-f", filePath)
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	if err := cmd.Start(); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", 500)
+		return
+	}
+
+	notify := r.Context().Done()
+
+	go func() {
+		<-notify
+		cmd.Process.Kill()
+	}()
+
+	buffer := make([]byte, 1024)
+	for {
+		n, err := stdout.Read(buffer)
+		if err != nil {
+			break
+		}
+		if n > 0 {
+			fmt.Fprintf(w, "data: %s\n\n", strings.TrimSpace(string(buffer[:n])))
+			flusher.Flush()
+		}
+	}
+
+	cmd.Wait()
 }
 
 func init() {

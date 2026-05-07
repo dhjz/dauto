@@ -29,6 +29,7 @@
           <button :class="{active: activeTab === 'projects'}" @click="activeTab = 'projects'">📁 项目</button>
           <button :class="{active: activeTab === 'tasks'}" @click="activeTab = 'tasks'">⏰ 定时任务</button>
           <button :class="{active: activeTab === 'executions'}" @click="activeTab = 'executions'">📋 执行记录</button>
+          <button :class="{active: activeTab === 'log'}" @click="activeTab = 'log'">📜 日志监控</button>
           <button :class="{active: activeTab === 'settings'}" @click="activeTab = 'settings'">⚙️ 配置</button>
         </nav>
         <button v-if="isLoggedIn" class="btn small logout" @click="logout">🚪 退出</button>
@@ -169,6 +170,23 @@
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- 日志监控 -->
+        <div v-if="activeTab === 'log'" class="log-monitor">
+          <div class="log-controls">
+            <button class="btn primary" @click="showAddLogModal = true">+ 添加</button>
+            <select v-model="selectedLogFile" @change="startLogStream">
+              <option value="">选择已添加的文件</option>
+              <option v-for="f in logFiles" :key="f" :value="f">{{ f }}</option>
+            </select>
+            <label><input type="checkbox" v-model="autoScroll" /> 自动滚动</label>
+            <input type="number" v-model="logTailLines" @change="reloadLog" style="width: 80px;" placeholder="行数" />
+            <span>行</span>
+          </div>
+          <div class="log-content" ref="logContent">
+            <pre>{{ logContent }}</pre>
+          </div>
         </div>
 
         <!-- 配置 -->
@@ -354,6 +372,22 @@
           </div>
           <div class="modal-actions">
             <button class="btn" @click="closeExecutionModal">关闭</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 添加日志文件弹窗 -->
+      <div v-if="showAddLogModal" class="modal" @click.self="showAddLogModal = false">
+        <div class="modal-content">
+          <h3>添加日志文件</h3>
+          <div class="form-group">
+            <label>文件绝对路径</label>
+            <input type="text" v-model="newLogFilePath" placeholder="C:\logs\app.log 或 /data/app.log" />
+            <span class="hint">Windows: C:\path\to\file.log | Linux: /data 或 /opt 开头的文件</span>
+          </div>
+          <div class="modal-actions">
+            <button class="btn" @click="showAddLogModal = false">取消</button>
+            <button class="btn primary" @click="addLogFile">添加</button>
           </div>
         </div>
       </div>

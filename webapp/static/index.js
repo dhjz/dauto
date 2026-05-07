@@ -67,7 +67,15 @@ var app = createApp({
       },
       loading: false,
       refreshTimer: null,
-      executionTimer: null
+      executionTimer: null,
+      showAddLogModal: false,
+      newLogFilePath: '',
+      logFiles: [],
+      selectedLogFile: '',
+      logContent: '',
+      logTailLines: 5000,
+      autoScroll: true,
+      logEventSource: null
     }
   },
   computed: {
@@ -81,6 +89,7 @@ var app = createApp({
   mounted() {
     this.loadData()
     this.loadEnvironments()
+    this.loadLogFiles()
     this.refreshTimer = setInterval(() => {
       if (this.isLoggedIn && this.activeTab === 'executions') {
         this.loadExecutions()
@@ -90,6 +99,7 @@ var app = createApp({
   beforeUnmount() {
     if (this.refreshTimer) clearInterval(this.refreshTimer)
     this.clearExecutionTimer()
+    this.stopLogStream()
   },
   methods: {
     clearExecutionTimer() {
@@ -469,6 +479,60 @@ var app = createApp({
     getStatusClass(status) {
       const map = { success: 'success', failed: 'failed', running: 'running', pending: 'pending' }
       return map[status] || ''
+    },
+    loadLogFiles() {
+      const files = localStorage.getItem('logFiles')
+      this.logFiles = files ? JSON.parse(files) : []
+    },
+    addLogFile() {
+      if (!this.newLogFilePath.trim()) {
+        alert('请输入文件路径')
+        return
+      }
+      if (!this.logFiles.includes(this.newLogFilePath)) {
+        this.logFiles.push(this.newLogFilePath)
+        localStorage.setItem('logFiles', JSON.stringify(this.logFiles))
+      }
+      this.selectedLogFile = this.newLogFilePath
+      this.showAddLogModal = false
+      this.newLogFilePath = ''
+      this.startLogStream()
+    },
+    startLogStream() {
+      if (!this.selectedLogFile) {
+        this.logContent = ''
+        this.stopLogStream()
+        return
+      }
+      this.stopLogStream()
+      this.logContent = ''
+      const token = localStorage.getItem('token')
+      const url = `${baseUrl}/api/log?path=${encodeURIComponent(this.selectedLogFile)}&lines=${this.logTailLines}${token ? '&token=' + token : ''}`
+      this.logEventSource = new EventSource(url)
+      this.logEventSource.onmessage = (e) => {
+        if (e.data) {
+          this.logContent += e.data + '\n'
+          this.$nextTick(() => {
+            if (this.autoScroll && this.$refs.logContent) {
+              this.$refs.logContent.scrollTop = this.$refs.logContent.scrollHeight
+            }
+          })
+        }
+      }
+      this.logEventSource.onerror = () => {
+        console.log('日志连接断开')
+      }
+    },
+    stopLogStream() {
+      if (this.logEventSource) {
+        this.logEventSource.close()
+        this.logEventSource = null
+      }
+    },
+    reloadLog() {
+      if (this.selectedLogFile) {
+        this.startLogStream()
+      }
     }
   }
 })
