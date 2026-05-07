@@ -514,8 +514,26 @@ var app = createApp({
       this.stopLogStream()
       this.logContent = ''
       const token = localStorage.getItem('token')
-      const url = `${baseUrl}/api/log?path=${encodeURIComponent(this.selectedLogFile)}&lines=${this.logTailLines}${token ? '&token=' + token : ''}`
-      this.logEventSource = new EventSource(url)
+      const tokenParam = token ? '&token=' + token : ''
+
+      fetch(`${baseUrl}/api/log/tail?path=${encodeURIComponent(this.selectedLogFile)}&lines=${this.logTailLines}${tokenParam}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.content) {
+            this.logContent = data.content
+            this.$nextTick(() => {
+              if (this.autoScroll && this.$refs.logContent) {
+                this.$refs.logContent.scrollTop = this.$refs.logContent.scrollHeight
+              }
+            })
+          }
+        })
+        .catch(err => {
+          console.error('加载历史日志失败', err)
+        })
+
+      const streamUrl = `${baseUrl}/api/log/stream?path=${encodeURIComponent(this.selectedLogFile)}${tokenParam}`
+      this.logEventSource = new EventSource(streamUrl)
       this.logEventSource.onmessage = (e) => {
         if (e.data) {
           this.logContent += e.data + '\n'

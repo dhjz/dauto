@@ -40,6 +40,8 @@ func SetupRoutesAPI(mux *http.ServeMux, password string) {
 	mux.HandleFunc("/api/build", corsHandler(authHandler(handleBuild)))
 	mux.HandleFunc("/api/environments", corsHandler(authHandler(handleEnvironments)))
 	mux.HandleFunc("/api/log", corsHandler(authHandler(handleLog)))
+	mux.HandleFunc("/api/log/tail", corsHandler(authHandler(handleLogTail)))
+	mux.HandleFunc("/api/log/stream", corsHandler(authHandler(handleLogStream)))
 }
 
 func authHandler(fn http.HandlerFunc) http.HandlerFunc {
@@ -446,6 +448,111 @@ func handleLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	notify := r.Context().Done()
+
+	go func() {
+		<-notify
+		cmd.Process.Kill()
+	}()
+
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fmt.Fprintf(w, "data: %s\n\n", line)
+		flusher.Flush()
+	}
+
+	cmd.Wait()
+}
+
+func handleLogTail(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+
+	filePath := r.URL.Query().Get("path")
+	tailLines := r.URL.Query().Get("lines")
+	if filePath == "" {
+		http.Error(w, "path is required", 400)
+		return
+	}
+
+	if runtime.GOOS == "linux" {
+		if !strings.HasPrefix(filePath, "/data/") && !strings.HasPrefix(filePath, "/opt/") {
+			http.Error(w, "安全限制: Linux系统只允许监控 /data 和 /opt 目录下的文件", 403)
+			return
+		}
+	}
+
+	lines := 5000
+	if tailLines != "" {
+		fmt.Sscanf(tailLines, "%d", &lines)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("powershell", "-Command", "Get-Content -Path '"+filePath+"' -Tail "+fmt.Sprintf("%d", lines)+" -Encoding UTF8")
+	} else {
+		cmd = exec.Command("tail", "-n", fmt.Sprintf("%d", lines), filePath)
+	}
+
+	out, err := cmd.Output()
+	if err != nil {
+		writeJSON(w, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, map[string]string{"content": string(out)})
+}
+
+func handleLogStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+
+	filePath := r.URL.Query().Get("path")
+	if filePath == "" {
+		http.Error(w, "path is required", 400)
+		return
+	}
+
+	if runtime.GOOS == "linux" {
+		if !strings.HasPrefix(filePath, "/data/") && !strings.HasPrefix(filePath, "/opt/") {
+			http.Error(w, "安全限制: Linux系统只允许监控 /data 和 /opt 目录下的文件", 403)
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", 500)
+		return
+	}
+
+	notify := r.Context().Done()
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("powershell", "-Command", "Get-Content -Path '"+filePath+"' -Wait -Encoding UTF8")
+	} else {
+		cmd = exec.Command("tail", "-f", "-n", "0", filePath)
+	}
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return
+	}
+
+	if err := cmd.Start(); err != nil {
+		return
+	}
 
 	go func() {
 		<-notify
