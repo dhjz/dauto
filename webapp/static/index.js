@@ -200,15 +200,30 @@ var app = createApp({
     },
     async loadExecutions(force = false) {
       try {
-        const url = `/api/executions?limit=${force === true ? '': (this.executionOffset || '')}`
+        let url = '/api/executions'
+        if (force !== true && this.executionOffset > 10) {
+          url = `/api/executions?limit=${this.executionOffset - 10}`
+        }
         const res = await apiFetch(url)
         const newExecutions = await res.json()
         if (force === true) {
           this.executions = newExecutions
-        } else if (this.executionOffset > 0 && newExecutions.length > 0) {
-          this.executions = [...this.executions, ...newExecutions]
         } else if (this.executionOffset === 0) {
           this.executions = newExecutions
+        } else {
+          const last10New = newExecutions.slice(-10)
+          const last10Current = this.executions.slice(-10)
+          const currentMap = new Map(last10Current.map(e => [e.id, e]))
+          for (const newExec of last10New) {
+            const existing = currentMap.get(newExec.id)
+            if (existing) {
+              if (JSON.stringify(existing) !== JSON.stringify(newExec)) {
+                Object.assign(existing, newExec)
+              }
+            } else {
+              this.executions.push(newExec)
+            }
+          }
         }
         this.executionOffset = this.executions.length
         if (this.showExecutionModal && this.executionDetail.id) {
