@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func RunProject(execID string, projectID string, force bool, moduleName string) (string, error) {
+func RunProject(execID string, projectID string, force bool, moduleName string, onlyRunStartScript bool) (string, error) {
 	s := store.GetStore()
 	var project *store.Project
 	for _, p := range s.Projects {
@@ -72,6 +72,9 @@ func RunProject(execID string, projectID string, force bool, moduleName string) 
 	if moduleName != "" {
 		updateOutput(fmt.Sprintf("指定模块: %s\n", moduleName))
 	}
+	if onlyRunStartScript {
+		updateOutput("仅执行启动脚本模式\n")
+	}
 	updateOutput(fmt.Sprintf("仓库地址: %s\n", project.RepoURL))
 	updateOutput(fmt.Sprintf("本地目录: %s\n", project.LocalDir))
 
@@ -88,6 +91,11 @@ func RunProject(execID string, projectID string, force bool, moduleName string) 
 		if nodeHome != "" {
 			updateOutput(fmt.Sprintf("NODE_HOME: %s\n", nodeHome))
 		}
+	}
+
+	if onlyRunStartScript {
+		err := runStartScriptsOnly(project, moduleName, updateOutput)
+		return getFinalOutput(execID), err
 	}
 
 	if err := os.MkdirAll(project.LocalDir, 0755); err != nil {
@@ -587,4 +595,69 @@ func GetNodeVersion(nodeHome string) string {
 		return "未找到"
 	}
 	return strings.TrimSpace(string(out))
+}
+
+func runStartScriptsOnly(project *store.Project, moduleName string, updateOutput func(string)) error {
+	updateOutput("跳过构建，仅执行启动脚本...\n")
+
+	if project.Type != "backend" {
+		updateOutput("仅执行启动脚本模式仅支持后端项目\n")
+		return fmt.Errorf("仅执行启动脚本模式仅支持后端项目")
+	}
+
+	if len(project.Modules) == 0 {
+		updateOutput("项目没有配置模块\n")
+		return fmt.Errorf("项目没有配置模块")
+	}
+
+	modules := project.Modules
+	if moduleName != "" {
+		found := false
+		for _, m := range modules {
+			if m.Name == moduleName {
+				modules = []store.Module{m}
+				found = true
+				break
+			}
+		}
+		if !found {
+			updateOutput(fmt.Sprintf("未找到模块: %s\n", moduleName))
+			return fmt.Errorf("未找到模块: %s", moduleName)
+		}
+	}
+
+	for _, module := range modules {
+		if module.StartScript == "" {
+			updateOutput(fmt.Sprintf("模块 %s 没有配置启动脚本，跳过\n", module.Name))
+			continue
+		}
+
+		deployDir := module.DeployDir
+		if deployDir == "" {
+			updateOutput(fmt.Sprintf("模块 %s 没有配置部署目录，跳过\n", module.Name))
+			continue
+		}
+
+		updateOutput(fmt.Sprintf("执行模块 %s 的启动脚本: %s\n", module.Name, module.StartScript))
+		script, args := parseScriptAndArgs(module.StartScript)
+		if len(args) > 0 {
+			fullArgs := append([]string{script}, args...)
+			if err := runCommand(deployDir, "bash", fullArgs...); err != nil {
+				updateOutput(fmt.Sprintf("模块 %s 启动脚本执行失败: %v\n", module.Name, err))
+				log.Printf("启动脚本执行失败: %v", err)
+			} else {
+				updateOutput(fmt.Sprintf("模块 %s 启动脚本执行成功\n", module.Name))
+			}
+		} else {
+			if err := runCommand(deployDir, "bash", module.StartScript, "restart"); err != nil {
+				updateOutput(fmt.Sprintf("模块 %s 启动脚本执行失败: %v\n", module.Name, err))
+				log.Printf("启动脚本执行失败: %v", err)
+			} else {
+				updateOutput(fmt.Sprintf("模块 %s 启动脚本执行成功\n", module.Name))
+			}
+		}
+	}
+
+	updateOutput("启动脚本执行完成\n")
+	return nil
 }

@@ -353,6 +353,10 @@
               <option v-for="mod in getProject(selectedProjectForModule).modules" :key="mod.name" :value="mod.name">{{ mod.name }}</option>
             </select>
           </div>
+          <div class="form-group">
+            <label><input type="checkbox" v-model="onlyRunStartScript" /> 仅执行启动脚本</label>
+            <span class="hint">勾选后只执行模块的startScript脚本，不进行构建部署</span>
+          </div>
           <div class="modal-actions">
             <button class="btn" @click="showModuleSelectModal = false">取消</button>
             <button class="btn primary" @click="confirmRunModule">执行</button>

@@ -43,6 +43,7 @@ var app = createApp({
       selectedProjectForModule: null,
       selectedModule: '',
       selectedModuleForce: false,
+      onlyRunStartScript: false,
       executionDetail: {},
       editingProject: null,
       editingTask: null,
@@ -383,12 +384,12 @@ var app = createApp({
         this.loadTasks()
       }
     },
-    async runProject(projectId, force = false, module = '') {
+    async runProject(projectId, force = false, module = '', onlyRunStartScript = false) {
       this.loading = true
       const res = await apiFetch('/api/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, force, module })
+        body: JSON.stringify({ projectId, force, module, onlyRunStartScript })
       })
       const data = await res.json()
       if (res.ok && data.id) {
@@ -435,12 +436,13 @@ var app = createApp({
       this.selectedProjectForModule = projectId
       this.selectedModule = ''
       this.selectedModuleForce = force
+      this.onlyRunStartScript = false
       this.showModuleSelectModal = true
     },
     confirmRunModule() {
       if (!confirm('确定要执行该项目吗？')) return
       this.showModuleSelectModal = false
-      this.runProject(this.selectedProjectForModule, this.selectedModuleForce, this.selectedModule || '')
+      this.runProject(this.selectedProjectForModule, this.selectedModuleForce, this.selectedModule || '', this.onlyRunStartScript)
     },
     getProject(projectId) {
       return this.projects.find(p => p.id === projectId) || {}
