@@ -1,8 +1,6 @@
 # DAuto 自动化部署系统
 
-DAuto 是一款轻量级的自动化部署工具，专为中小团队设计，支持 Java/Maven 后端项目和 Node/NPM 前端项目的自动构建与部署。通过 Git 代码变化检测，实现只构建和部署有更新的模块，减少不必要的构建时间。支持配置定时任务、企业微信消息通知，并提供完整的执行日志记录。
-
-相比 Jenkins 等大型 CI/CD 工具，DAuto 更加轻量、易于部署和维护，无需复杂的配置即可快速上手。系统采用前后端分离架构，前端提供直观的 Web 界面，后端使用 Go 语言开发，确保高效稳定运行。数据存储采用本地 JSON 文件，无需额外数据库依赖，真正实现一键启动即用。
+一个轻量级的自动化部署系统，支持 Java/Maven 后端项目和 Node/NPM 前端项目的自动构建与部署。
 
 ## 主要功能
 
@@ -84,3 +82,13 @@ go build -o dauto .
 - 每5分钟：`0 */5 * * * *`
 - 每小时：`0 0 * * * *`
 - 每天凌晨2点：`0 0 2 * * *`
+
+# 其他说明
+- 页面效果图见`appimg`目录
+- <img src="https://gcore.jsdelivr.net/gh/dhjz/dauto@main/appimg/app1.jpg" style="width: 340px;"/>
+- <img src="https://gcore.jsdelivr.net/gh/dhjz/dauto@main/appimg/app2.jpg" style="width: 340px;"/>
+- <img src="https://gcore.jsdelivr.net/gh/dhjz/dauto@main/appimg/app3.jpg" style="width: 340px;"/>
+- <img src="https://gcore.jsdelivr.net/gh/dhjz/dauto@main/appimg/app4.jpg" style="width: 340px;"/>
+
+
+- 项目地址: [https://github.com/dhjz/dauto]( https://github.com/dhjz/dauto)  
