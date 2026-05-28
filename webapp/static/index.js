@@ -17,7 +17,7 @@ var app = createApp({
       activeTab: 'dashboard',
       token: localStorage.getItem('token') || '',
       isLoggedIn: !!localStorage.getItem('token'),
-      showLoginModal: !localStorage.getItem('token'),
+      showLoginModal: !localStorage.getItem('token') && false,
       loginForm: {
         password: ''
       },
@@ -78,7 +78,8 @@ var app = createApp({
       logTailLines: 5000,
       autoScroll: true,
       autoWrapLog: true,
-      logEventSource: null
+      logEventSource: null,
+      navMini: localStorage.getItem('navMini') == '1'
     }
   },
   computed: {
@@ -108,6 +109,10 @@ var app = createApp({
     clearExecutionTimer() {
       if (this.executionTimer) clearInterval(this.executionTimer)
       this.executionTimer = null
+    },
+    toggleNav() {
+      this.navMini = !this.navMini
+      localStorage.setItem('navMini', this.navMini ? '1' : '')
     },
     async login() {
       const res = await fetch(baseUrl + '/api/login', {
