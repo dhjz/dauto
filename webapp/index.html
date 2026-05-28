@@ -186,6 +186,8 @@
             <input type="number" v-model="logTailLines" @change="reloadLog" style="width: 80px;" placeholder="行数" />
             <span>行</span>
             <button class="btn small" @click="copyLogPath" :disabled="!selectedLogFile">复制路径</button>
+            <button class="btn small" @click="reloadLog" :disabled="!selectedLogFile">重置</button>
+            <button class="btn small" @click="clearLogScreen" :disabled="!selectedLogFile">清空</button>
           </div>
           <div class="log-content" ref="logContent" :class="{ 'no-wrap': !autoWrapLog }">
           </div>

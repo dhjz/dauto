@@ -602,6 +602,11 @@ var app = createApp({
         copyText(this.selectedLogFile)
         notify('路径已复制', 1)
       }
+    },
+    clearLogScreen() {
+      if (this.logElement) {
+        this.logElement.innerHTML = ''
+      }
     }
   }
 })
